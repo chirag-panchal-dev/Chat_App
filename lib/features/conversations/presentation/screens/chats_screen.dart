@@ -13,6 +13,7 @@ import '../../../chat/presentation/viewmodels/chat_providers.dart';
 import '../../../chat/presentation/widgets/message_ticks.dart';
 import '../../../notifications/presentation/push_controller.dart';
 import '../../../privacy_settings/presentation/viewmodels/settings_providers.dart';
+import '../../../profile/domain/entities/profile.dart';
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
 import '../../domain/entities/conversation.dart';
 import '../viewmodels/conversation_providers.dart';
@@ -42,6 +43,91 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
   void dispose() {
     _query.dispose();
     super.dispose();
+  }
+
+  /// "Start something new": chat, group, or join with a code.
+  void _showStartSheet(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    showModalBottomSheet<void>(
+      context: context,
+      builder:
+          (ctx) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        l.startSheetTitle,
+                        style: Theme.of(ctx).textTheme.titleLarge,
+                      ),
+                    ),
+                  ),
+                  for (final o in [
+                    (
+                      Icons.chat_bubble_rounded,
+                      const [Color(0xFF43CDB8), Color(0xFF1E8FA8)],
+                      l.newChat,
+                      l.newChatDesc,
+                      '/new-chat',
+                    ),
+                    (
+                      Icons.groups_rounded,
+                      const [Color(0xFF8C83F6), Color(0xFF5B4FE0)],
+                      l.newGroup,
+                      l.newGroupDesc(maxGroupMembers),
+                      '/new-group',
+                    ),
+                    (
+                      Icons.vpn_key_rounded,
+                      const [Color(0xFFF6B94A), Color(0xFFEF8A3C)],
+                      l.joinWithCode,
+                      l.joinWithCodeDesc,
+                      '/join-group',
+                    ),
+                  ])
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 2,
+                      ),
+                      leading: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: o.$2,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: Icon(o.$1, color: Colors.white, size: 24),
+                      ),
+                      title: Text(
+                        o.$3,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(o.$4),
+                      trailing: Icon(
+                        Icons.chevron_right_rounded,
+                        color: c.textSecondary,
+                      ),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        context.push(o.$5);
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+    );
   }
 
   void _consumePending() {
@@ -90,7 +176,7 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
           focusElevation: 0,
           highlightElevation: 0,
           foregroundColor: Colors.white,
-          onPressed: () => context.push('/new-chat'),
+          onPressed: () => _showStartSheet(context),
           child: const Icon(Icons.edit_rounded),
         ),
       ),
@@ -432,25 +518,44 @@ class _ConversationTile extends ConsumerWidget {
     final c = context.colors;
     final t = Theme.of(context).textTheme;
     final conv = item.conversation;
-    final otherUid = conv.otherUid(item.me);
-    final profile = ref.watch(profileByUidProvider(otherUid));
+    final isGroup = conv.isGroup;
+    final otherUid = isGroup ? '' : conv.otherUid(item.me);
+    final AsyncValue<Profile?> profile =
+        isGroup
+            ? const AsyncData<Profile?>(null)
+            : ref.watch(profileByUidProvider(otherUid));
     final deleted =
-        conv.otherDeleted(item.me) ||
-        (profile.hasValue && profile.value == null);
+        !isGroup &&
+        (conv.otherDeleted(item.me) ||
+            (profile.hasValue && profile.value == null));
     final name =
-        deleted ? l.deletedAccount : (profile.value?.displayName ?? '…');
+        isGroup
+            ? (conv.name ?? '')
+            : (deleted
+                ? l.deletedAccount
+                : (profile.value?.displayName ?? '…'));
 
     final cleared = item.isCleared;
     final last = cleared ? null : item.lastMessage;
     final mineDeleted = last != null && last.senderId == item.me;
-    final previewText =
+    // Group rows prefix the sender ("Aarav: hi", "You: hi").
+    final senderPrefix =
+        (isGroup && last != null && !last.isSystem)
+            ? (last.senderId == item.me
+                ? '${l.you}: '
+                : '${(ref.watch(profileByUidProvider(last.senderId)).value?.displayName ?? '…').split(' ').first}: ')
+            : '';
+    final basePreview =
         last == null
             ? (conv.lastMessagePreview ?? l.noMessagesYet)
+            : last.isSystem
+            ? l.groupUpdated
             : last.deleted
             ? (mineDeleted ? l.youDeletedMessage : l.messageDeleted)
             : (last.isImage
                 ? (last.preview.isEmpty ? l.photo : last.preview)
                 : last.preview);
+    final previewText = '$senderPrefix$basePreview';
 
     if (query.isNotEmpty &&
         !name.toLowerCase().contains(query) &&
@@ -471,14 +576,54 @@ class _ConversationTile extends ConsumerWidget {
           settingsProvider.select((st) => st.value?.showLastSeen ?? false),
         );
     final typingAt =
-        showTyping
+        (showTyping && !isGroup)
             ? ref
                 .watch(peerTypingProvider((cid: conv.id, peer: otherUid)))
                 .value
             : null;
+    final groupSignals =
+        (showTyping && isGroup)
+            ? ref.watch(typingUsersProvider(conv.id)).value
+            : null;
+    final groupTypers = typingUids(
+      groupSignals,
+      item.me,
+      (groupSignals?.isNotEmpty ?? false)
+          ? ref.watch(typingClockProvider).value
+          : null,
+    );
     final typing =
-        typingAt != null &&
-        isTypingNow(typingAt, ref.watch(typingClockProvider).value);
+        (typingAt != null &&
+            isTypingNow(typingAt, ref.watch(typingClockProvider).value)) ||
+        groupTypers.isNotEmpty;
+    final typingLabel =
+        groupTypers.isEmpty
+            ? l.typing
+            : (groupTypers.length == 1
+                ? l.typingOne(
+                  (ref
+                              .watch(profileByUidProvider(groupTypers.first))
+                              .value
+                              ?.displayName ??
+                          '…')
+                      .split(' ')
+                      .first,
+                )
+                : l.typingMany(
+                  groupTypers
+                      .take(2)
+                      .map(
+                        (u) =>
+                            (ref
+                                        .watch(profileByUidProvider(u))
+                                        .value
+                                        ?.displayName ??
+                                    '…')
+                                .split(' ')
+                                .first,
+                      )
+                      .join(', '),
+                ));
     final p = item.prefs;
     final mine = item.lastIsMine && last != null;
 
@@ -486,7 +631,16 @@ class _ConversationTile extends ConsumerWidget {
     Widget? tick;
     if (mine) {
       final peerReceipts =
-          ref.watch(peerReceiptsProvider((cid: conv.id, peer: otherUid))).value;
+          isGroup
+              ? null
+              : ref
+                  .watch(peerReceiptsProvider((cid: conv.id, peer: otherUid)))
+                  .value;
+      final groupReceipts =
+          isGroup
+              ? (ref.watch(groupReceiptsProvider(conv.id)).value ??
+                  const <String, Receipts>{})
+              : const <String, Receipts>{};
       final receiptsOn =
           ref.watch(settingsProvider).value?.readReceiptsEnabled ?? true;
       final msg = ChatMessage(
@@ -496,7 +650,10 @@ class _ConversationTile extends ConsumerWidget {
         createdAt: last.at,
         status: last.pending ? SendStatus.sending : SendStatus.sent,
       );
-      var st = resolveStatus(msg, peerReceipts);
+      var st =
+          isGroup
+              ? resolveGroupStatus(msg, groupReceipts, conv.othersOf(item.me))
+              : resolveStatus(msg, peerReceipts);
       if (!receiptsOn && st == SendStatus.read) st = SendStatus.delivered;
       tick = Padding(
         padding: const EdgeInsets.only(right: 4),
@@ -510,7 +667,7 @@ class _ConversationTile extends ConsumerWidget {
         if (unread) l.unread,
         if (p.pinned) l.pinned,
         if (p.isMuted()) l.muted,
-        typing ? l.typing : previewText,
+        typing ? typingLabel : previewText,
         time,
       ].join(', '),
       child: InkWell(
@@ -524,10 +681,14 @@ class _ConversationTile extends ConsumerWidget {
               children: [
                 ExcludeSemantics(
                   child: Hero(
-                    tag: 'avatar_$otherUid',
+                    tag: isGroup ? 'avatar_${conv.id}' : 'avatar_$otherUid',
                     child: UserAvatar(
                       name: name,
-                      photoPath: deleted ? null : profile.value?.photoPath,
+                      group: isGroup,
+                      photoPath:
+                          isGroup
+                              ? conv.photoPath
+                              : (deleted ? null : profile.value?.photoPath),
                       size: 58,
                     ),
                   ),
@@ -582,7 +743,7 @@ class _ConversationTile extends ConsumerWidget {
                               ),
                             Expanded(
                               child: Text(
-                                typing ? l.typing : previewText,
+                                typing ? typingLabel : previewText,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: t.bodyMedium?.copyWith(

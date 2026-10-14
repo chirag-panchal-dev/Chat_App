@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:hushlo/core/errors/failure.dart';
 import 'package:hushlo/features/chat/domain/entities/chat_message.dart';
+import 'package:hushlo/features/groups/domain/group_models.dart';
+import 'package:hushlo/features/groups/domain/group_repository.dart';
 import 'package:hushlo/features/chat/domain/repositories/chat_repository.dart';
 import 'package:hushlo/features/conversations/domain/entities/conversation.dart';
 import 'package:hushlo/features/conversations/domain/repositories/conversation_repository.dart';
@@ -78,6 +80,13 @@ class FakeChatRepository implements ChatRepository {
   @override
   Future<void> hideMessage(String c, String uid, String mid) async =>
       hiddenCalls.add(mid);
+
+  @override
+  Stream<Map<String, Receipts>> watchAllReceipts(String c) =>
+      const Stream.empty();
+  @override
+  Stream<Map<String, DateTime>> watchTypingAll(String c) =>
+      const Stream.empty();
 
   final typingSet = <String>[];
   int typingCleared = 0;
@@ -162,8 +171,9 @@ class FakeProfileRepository implements ProfileRepository {
     created = Profile(uid: uid, username: username, displayName: displayName);
   }
 
+  final byUsername = <String, Profile>{};
   @override
-  Future<Profile?> findByUsername(String n) async => null;
+  Future<Profile?> findByUsername(String n) async => byUsername[n];
   @override
   Future<Profile?> getProfile(String uid) async => null;
   @override
@@ -182,3 +192,98 @@ class FakeProfileRepository implements ProfileRepository {
 
 // Keep Failure import used for fakes that throw typed failures.
 Failure permissionDenied() => const PermissionFailure();
+
+// ---------------------------------------------------------------- groups
+class FakeGroupRepository implements GroupRepository {
+  final created = <Map<String, Object?>>[];
+  final added = <Map<String, Object?>>[];
+  Object? error;
+
+  @override
+  Future<String> createGroup({
+    required String me,
+    required String name,
+    required List<String> memberUids,
+    File? photo,
+  }) async {
+    if (error != null) throw error!;
+    created.add({
+      'me': me,
+      'name': name,
+      'members': memberUids,
+      'photo': photo,
+    });
+    return 'g_${'a' * 32}';
+  }
+
+  @override
+  Future<void> addMembers({
+    required String groupId,
+    required String actor,
+    required List<String> uids,
+  }) async {
+    if (error != null) throw error!;
+    added.add({'gid': groupId, 'actor': actor, 'uids': uids});
+  }
+
+  @override
+  Future<void> removeMember({
+    required String groupId,
+    required String actor,
+    required String uid,
+  }) async {}
+  @override
+  Future<void> setAdmin({
+    required String groupId,
+    required String uid,
+    required bool admin,
+  }) async {}
+  @override
+  Future<void> rename({
+    required String groupId,
+    required String actor,
+    required String name,
+  }) async {}
+  @override
+  Future<void> setPhoto({required String groupId, required File photo}) async {}
+  @override
+  Future<void> leave({required String groupId, required String me}) async {}
+  @override
+  Stream<GroupInvite?> watchMyInvite(String groupId, String me) =>
+      const Stream.empty();
+  @override
+  Future<GroupInvite> createInvite({
+    required String groupId,
+    required String me,
+    required String groupName,
+  }) async =>
+      GroupInvite(code: 'X' * 12, groupId: groupId, groupName: groupName);
+  @override
+  Future<void> revokeInvite(String code) async {}
+  @override
+  Future<GroupInvite?> lookupInvite(String code) async => null;
+  @override
+  Future<void> requestJoin({required String code, required String me}) async {}
+  @override
+  Stream<bool> watchMyJoinRequest(String groupId, String me) =>
+      const Stream.empty();
+  @override
+  Future<void> cancelJoinRequest({
+    required String groupId,
+    required String me,
+  }) async {}
+  @override
+  Stream<List<JoinRequest>> watchJoinRequests(String groupId) =>
+      const Stream.empty();
+  @override
+  Future<void> approveJoin({
+    required String groupId,
+    required String actor,
+    required String uid,
+  }) async {}
+  @override
+  Future<void> rejectJoin({
+    required String groupId,
+    required String uid,
+  }) async {}
+}

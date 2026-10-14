@@ -776,4 +776,273 @@ class AppL10nEn extends AppL10n {
 
   @override
   String get chatCleared => 'Chat cleared';
+
+  @override
+  String get startSheetTitle => 'Start something new';
+
+  @override
+  String get newChatDesc => 'Message someone by their username';
+
+  @override
+  String get newGroup => 'New group';
+
+  @override
+  String newGroupDesc(int max) {
+    return 'Chat with up to $max people';
+  }
+
+  @override
+  String get joinWithCode => 'Join with a code';
+
+  @override
+  String get joinWithCodeDesc => 'Use an invite code from a group admin';
+
+  @override
+  String membersCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count members',
+      one: '1 member',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get addMembers => 'Add members';
+
+  @override
+  String get selectMembers => 'Select members';
+
+  @override
+  String membersSelected(int count, int max) {
+    return '$count of $max selected';
+  }
+
+  @override
+  String get searchYourChats => 'Search your chats';
+
+  @override
+  String get addByUsername => 'Add by username';
+
+  @override
+  String get noContactsYet => 'No chats yet. Add people by their exact username below.';
+
+  @override
+  String get groupName => 'Group name';
+
+  @override
+  String get groupNameHint => 'Name your group';
+
+  @override
+  String get groupPhotoOptional => 'Group photo (optional)';
+
+  @override
+  String get createGroup => 'Create group';
+
+  @override
+  String get next => 'Next';
+
+  @override
+  String get groupInfo => 'Group info';
+
+  @override
+  String get admin => 'Admin';
+
+  @override
+  String get youLower => 'you';
+
+  @override
+  String get makeAdmin => 'Make admin';
+
+  @override
+  String get removeAdmin => 'Remove as admin';
+
+  @override
+  String get removeFromGroup => 'Remove from group';
+
+  @override
+  String get leaveGroup => 'Leave group';
+
+  @override
+  String get leaveGroupTitle => 'Leave this group?';
+
+  @override
+  String leaveGroupBody(String name) {
+    return 'You won\'t get new messages from $name. To come back, an admin has to approve you again.';
+  }
+
+  @override
+  String removeMemberTitle(String name) {
+    return 'Remove $name?';
+  }
+
+  @override
+  String get removeMemberBody => 'They won\'t see new messages in this group.';
+
+  @override
+  String get editGroupName => 'Edit group name';
+
+  @override
+  String groupFull(int max) {
+    return 'This group is full (up to $max people).';
+  }
+
+  @override
+  String get cannotRemoveLastAdmin => 'Make someone else an admin first.';
+
+  @override
+  String memberLimitReached(int max) {
+    return 'Groups can have up to $max people.';
+  }
+
+  @override
+  String get onlyAdminsCan => 'Only admins can do this.';
+
+  @override
+  String get inviteCode => 'Invite code';
+
+  @override
+  String get inviteCodeHelp => 'Share this code. People who use it can ask to join; an admin approves them.';
+
+  @override
+  String get createInviteCode => 'Create invite code';
+
+  @override
+  String get resetInviteCode => 'Create a new code';
+
+  @override
+  String get turnOffInvite => 'Turn off';
+
+  @override
+  String get copyCode => 'Copy code';
+
+  @override
+  String get shareCode => 'Share';
+
+  @override
+  String inviteShareText(String name, String code) {
+    return 'Join \"$name\" on Hushlo. Use this invite code: $code';
+  }
+
+  @override
+  String get codeCopied => 'Code copied';
+
+  @override
+  String get noActiveInvite => 'No active invite code.';
+
+  @override
+  String get joinRequests => 'Join requests';
+
+  @override
+  String get noJoinRequests => 'No pending requests.';
+
+  @override
+  String get approve => 'Approve';
+
+  @override
+  String get reject => 'Reject';
+
+  @override
+  String requestsPending(int count) {
+    return '$count pending';
+  }
+
+  @override
+  String get joinGroupTitle => 'Join a group';
+
+  @override
+  String get enterInviteCode => 'Invite code';
+
+  @override
+  String get pasteCode => 'Paste';
+
+  @override
+  String get findGroup => 'Find group';
+
+  @override
+  String get invalidInviteCode => 'That code isn\'t valid or has been turned off.';
+
+  @override
+  String get requestToJoin => 'Request to join';
+
+  @override
+  String get requestSent => 'Request sent. An admin needs to approve it.';
+
+  @override
+  String get alreadyMember => 'You\'re already in this group.';
+
+  @override
+  String get cancelRequest => 'Cancel request';
+
+  @override
+  String get joinGroupHelp => 'Ask a group admin for an invite code, then enter it here.';
+
+  @override
+  String sysAdded(String actor, String target) {
+    return '$actor added $target';
+  }
+
+  @override
+  String sysRemoved(String actor, String target) {
+    return '$actor removed $target';
+  }
+
+  @override
+  String sysLeft(String actor) {
+    return '$actor left';
+  }
+
+  @override
+  String sysRenamed(String actor) {
+    return '$actor changed the group name';
+  }
+
+  @override
+  String get groupUpdated => 'Group updated';
+
+  @override
+  String get notInGroup => 'You\'re no longer in this group.';
+
+  @override
+  String typingOne(String name) {
+    return '$name is typing…';
+  }
+
+  @override
+  String typingMany(String names) {
+    return '$names are typing…';
+  }
+
+  @override
+  String get messageInfo => 'Message info';
+
+  @override
+  String get infoRead => 'Read';
+
+  @override
+  String get infoDelivered => 'Delivered';
+
+  @override
+  String get infoSent => 'Sent, not delivered yet';
+
+  @override
+  String get infoNobody => 'Nobody yet';
+
+  @override
+  String groupCreatedBy(String name) {
+    return 'Created by $name';
+  }
+
+  @override
+  String get groupMembersTitle => 'Members';
+
+  @override
+  String get changeGroupPhoto => 'Change group photo';
+
+  @override
+  String get errGroupGeneric => 'Couldn\'t update the group. Please try again.';
+
+  @override
+  String get viewInfo => 'Info';
 }

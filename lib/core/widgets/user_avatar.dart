@@ -30,11 +30,15 @@ class UserAvatar extends ConsumerWidget {
     required this.name,
     this.photoPath,
     this.size = 48,
+    this.group = false,
   });
 
   final String name;
   final String? photoPath;
   final double size;
+
+  /// Group avatar: shows a people icon instead of initials when there's no photo.
+  final bool group;
 
   String get _initials {
     final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
@@ -60,15 +64,22 @@ class UserAvatar extends ConsumerWidget {
           colors: pair,
         ),
       ),
-      child: Text(
-        _initials,
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-          fontSize: size * 0.38,
-          letterSpacing: -0.3,
-        ),
-      ),
+      child:
+          group
+              ? Icon(
+                Icons.groups_rounded,
+                color: Colors.white,
+                size: size * 0.52,
+              )
+              : Text(
+                _initials,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: size * 0.38,
+                  letterSpacing: -0.3,
+                ),
+              ),
     );
     final path = photoPath;
     if (path == null || path.isEmpty) return ExcludeSemantics(child: fallback);

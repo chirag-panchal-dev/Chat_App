@@ -40,6 +40,29 @@ service firebase.storage {
       allow delete: if signedIn() && request.auth.uid == uploaderUid;
     }
 
+    // Group avatars: groupAvatars/{gid}/{fileId}. Members read, admins write.
+    match /groupAvatars/{gid}/{fileId} {
+      function gConvPath() {
+        return /databases/(default)/documents/conversations/$(gid);
+      }
+      function isGroupMember() {
+        return signedIn()
+            && firestore.exists(gConvPath())
+            && request.auth.uid in firestore.get(gConvPath()).data.get('memberIds', []);
+      }
+      function isGroupAdmin() {
+        return signedIn()
+            && firestore.exists(gConvPath())
+            && request.auth.uid in firestore.get(gConvPath()).data.get('adminIds', []);
+      }
+
+      allow read: if isGroupMember();
+      allow create, update: if isGroupAdmin()
+                            && isImage()
+                            && request.resource.size < 5 * 1024 * 1024;
+      allow delete: if isGroupAdmin();
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

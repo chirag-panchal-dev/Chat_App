@@ -11,6 +11,11 @@ import '../../features/auth/presentation/viewmodels/auth_providers.dart';
 import '../../features/auth/presentation/viewmodels/auth_view_model.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/chat/presentation/screens/contact_info_screen.dart';
+import '../../features/chat/presentation/screens/message_info_screen.dart';
+import '../../features/groups/presentation/screens/add_members_screen.dart';
+import '../../features/groups/presentation/screens/group_info_screen.dart';
+import '../../features/groups/presentation/screens/join_group_screen.dart';
+import '../../features/groups/presentation/screens/new_group_screen.dart';
 import '../../features/conversations/presentation/screens/chats_screen.dart';
 import '../../features/onboarding/presentation/intro_screen.dart';
 import '../../features/privacy_settings/presentation/screens/legal_screen.dart';
@@ -93,10 +98,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/setup', builder: (_, __) => const ProfileSetupScreen()),
       GoRoute(path: '/chats', builder: (_, __) => const ChatsScreen()),
       GoRoute(path: '/new-chat', builder: (_, __) => const NewChatScreen()),
+      GoRoute(path: '/new-group', builder: (_, __) => const NewGroupScreen()),
+      GoRoute(path: '/join-group', builder: (_, __) => const JoinGroupScreen()),
       GoRoute(
         path: '/chat/:id',
         builder: (_, s) => ChatScreen(conversationId: s.pathParameters['id']!),
         routes: [
+          GoRoute(
+            path: 'group',
+            builder:
+                (_, s) => GroupInfoScreen(groupId: s.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'add',
+            builder:
+                (_, s) => AddMembersScreen(groupId: s.pathParameters['id']!),
+          ),
+          GoRoute(
+            path: 'message/:mid',
+            builder:
+                (_, s) => MessageInfoScreen(
+                  conversationId: s.pathParameters['id']!,
+                  messageId: s.pathParameters['mid']!,
+                ),
+          ),
           GoRoute(
             path: 'info',
             builder:

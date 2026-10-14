@@ -46,6 +46,12 @@ service cloud.firestore {
           && request.auth.uid in get(convRef(cid)).data.memberIds;
     }
 
+    function isGroupAdmin(cid) {
+      return signedIn()
+          && exists(convRef(cid))
+          && request.auth.uid in get(convRef(cid)).data.get('adminIds', []);
+    }
+
     // Membership as it will be after the current write batch commits.
     function isMemberAfter(cid) {
       return signedIn()
@@ -173,10 +179,112 @@ service cloud.firestore {
             && !isBlocked(d.memberIds[1], d.memberIds[0]);
       }
 
+      function validGroupName(n) {
+        return n is string && n.trim().size() >= 1 && n.size() <= 50;
+      }
+
+      function validGroupPhoto(d) {
+        return d.get('photoPath', null) == null
+            || (d.photoPath is string && d.photoPath.matches('^groupAvatars/' + cid + '/.+'));
+      }
+
+      function uniqueList(l) {
+        return l is list && l.toSet().size() == l.size();
+      }
+
+      // Group conversation at creation. NOTE: rules cannot iterate lists, so
+      // they do not verify that every memberId has a profile / is a string,
+      // nor per-pair blocks (blocks are not enforced in groups).
+      function groupShape(d) {
+        return d.keys().hasOnly(['type', 'memberIds', 'adminIds', 'name', 'photoPath', 'createdBy',
+                                 'createdAt', 'updatedAt', 'lastMessageId', 'lastMessageAt',
+                                 'lastMessagePreview', 'lastSenderId'])
+            && d.keys().hasAll(['type', 'memberIds', 'adminIds', 'name', 'createdBy',
+                                'createdAt', 'updatedAt'])
+            && d.type == 'group'
+            && cid.matches('^g_[a-z0-9]{32}$')
+            && uniqueList(d.memberIds) && d.memberIds.size() >= 2 && d.memberIds.size() <= 20
+            && d.createdBy == request.auth.uid
+            && request.auth.uid in d.memberIds
+            && d.adminIds == [d.createdBy]
+            && validGroupName(d.name)
+            && validGroupPhoto(d)
+            && d.createdAt == request.time
+            && d.updatedAt == request.time
+            && d.get('lastMessageId', null) == null
+            && d.get('lastMessageAt', null) == null
+            && d.get('lastMessagePreview', null) == null
+            && d.get('lastSenderId', null) == null;
+      }
+
+      // Common checks on the group doc after an update.
+      function groupUpdateCommon(old, nw) {
+        return old.get('type', null) == 'group'
+            && nw.type == 'group'
+            && uniqueList(nw.memberIds) && uniqueList(nw.adminIds)
+            && nw.memberIds.hasAll(nw.adminIds)
+            && validGroupName(nw.name)
+            && validGroupPhoto(nw)
+            && (!nw.diff(old).affectedKeys().hasAny(['updatedAt']) || nw.updatedAt == request.time);
+      }
+
+      // Admin: rename, change photo, add/remove members, promote/demote.
+      function adminUpdate(old, nw) {
+        return request.auth.uid in old.adminIds
+            && nw.diff(old).affectedKeys().hasOnly(['name', 'photoPath', 'memberIds', 'adminIds', 'updatedAt'])
+            && groupUpdateCommon(old, nw)
+            && nw.memberIds.size() >= 1 && nw.memberIds.size() <= 20
+            && nw.adminIds.size() >= 1;
+      }
+
+      // Member leaves: removes only themselves. A leaving admin may promote
+      // someone in the same write; a non-admin may not touch adminIds.
+      function leaveUpdate(old, nw) {
+        return request.auth.uid in old.memberIds
+            && !(request.auth.uid in nw.memberIds)
+            && nw.diff(old).affectedKeys().hasOnly(['memberIds', 'adminIds', 'updatedAt'])
+            && groupUpdateCommon(old, nw)
+            && nw.memberIds.size() == old.memberIds.size() - 1
+            && old.memberIds.hasAll(nw.memberIds)
+            && (nw.memberIds.size() == 0 || nw.adminIds.size() >= 1)
+            && (request.auth.uid in old.adminIds || nw.adminIds == old.adminIds);
+      }
+
       // Also serves `where memberIds array-contains uid` queries.
       allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
-      allow create: if signedIn() && convShape(request.resource.data);
-      allow update, delete: if false; // summary fields: Cloud Functions only
+      allow create: if signedIn() && (convShape(request.resource.data) || groupShape(request.resource.data));
+      // Direct chats: never updatable by clients (summary fields: Cloud Functions only).
+      // Groups: admin edits or a member leaving (see helpers above).
+      allow update: if signedIn() && resource.data.get('type', null) == 'group'
+                    && (adminUpdate(resource.data, request.resource.data)
+                        || leaveUpdate(resource.data, request.resource.data));
+      allow delete: if false;
+
+      // Join requests (admin approval). The requester is not a member, so they
+      // may `get` only their own request.
+      match /joinRequests/{ruid} {
+        function inviteRef(code) {
+          return /databases/$(database)/documents/groupInvites/$(code);
+        }
+        allow get: if isOwner(ruid) || isGroupAdmin(cid);
+        allow list: if isGroupAdmin(cid);
+        allow create: if isOwner(ruid)
+                      && request.resource.data.keys().hasOnly(['uid', 'code', 'createdAt'])
+                      && request.resource.data.keys().hasAll(['uid', 'code', 'createdAt'])
+                      && request.resource.data.uid == ruid
+                      && request.resource.data.code is string
+                      && request.resource.data.code.matches('^[A-Za-z0-9]{10,24}$')
+                      && request.resource.data.createdAt == request.time
+                      && exists(convRef(cid))
+                      && get(convRef(cid)).data.get('type', null) == 'group'
+                      && !(ruid in get(convRef(cid)).data.memberIds)
+                      && get(convRef(cid)).data.memberIds.size() < 20
+                      && exists(inviteRef(request.resource.data.code))
+                      && get(inviteRef(request.resource.data.code)).data.gid == cid
+                      && get(inviteRef(request.resource.data.code)).data.active == true;
+        allow update: if false;
+        allow delete: if isOwner(ruid) || isGroupAdmin(cid);
+      }
 
       match /members/{uid} {
         function memberShape(d) {
@@ -241,7 +349,7 @@ service cloud.firestore {
           return d.keys().hasOnly(['clientMessageId', 'senderId', 'type', 'text', 'mediaPath',
                                    'thumbnailPath', 'mimeType', 'sizeBytes', 'width', 'height',
                                    'replyToMessageId', 'createdAt', 'editedAt',
-                                   'deletedForEveryoneAt'])
+                                   'deletedForEveryoneAt', 'event', 'targetUid'])
               && d.keys().hasAll(['clientMessageId', 'senderId', 'type', 'createdAt'])
               && d.clientMessageId == mid
               && d.senderId == request.auth.uid
@@ -249,11 +357,39 @@ service cloud.firestore {
               && d.get('editedAt', null) == null
               && d.get('deletedForEveryoneAt', null) == null
               && nullOrString(d, 'replyToMessageId', 128)
-              && (d.type == 'text' ? textMessage(d) : (d.type == 'image' && imageMessage(d, cid)));
+              && (d.type == 'text' ? textMessage(d)
+                  : (d.type == 'image' ? imageMessage(d, cid)
+                  : (d.type == 'system' && systemMessage(d, cid))));
+        }
+
+        function noSystemFields(d) {
+          return d.get('event', null) == null && d.get('targetUid', null) == null;
+        }
+
+        // Group-only event message. 'left' is written in the same batch as the
+        // leave update; get() sees pre-batch state, so the leaver is still a member.
+        function systemMessage(d, cid) {
+          let conv = get(convRef(cid)).data;
+          return conv.get('type', null) == 'group'
+              && d.get('event', null) in ['added', 'removed', 'left', 'renamed']
+              && d.get('text', null) == null
+              && d.get('mediaPath', null) == null
+              && d.get('thumbnailPath', null) == null
+              && d.get('mimeType', null) == null
+              && d.get('sizeBytes', null) == null
+              && d.get('width', null) == null
+              && d.get('height', null) == null
+              && (d.event == 'renamed'
+                  ? d.get('targetUid', null) == null
+                  : (d.get('targetUid', null) is string && d.targetUid.size() >= 1 && d.targetUid.size() <= 128))
+              && (d.event == 'left'
+                  ? d.targetUid == request.auth.uid
+                  : request.auth.uid in conv.adminIds);
         }
 
         function textMessage(d) {
-          return d.get('text', null) is string
+          return noSystemFields(d)
+              && d.get('text', null) is string
               && d.text.size() >= 1 && d.text.size() <= 4000
               && d.text.matches('(?s).*\\S.*')
               && d.get('mediaPath', null) == null
@@ -265,7 +401,8 @@ service cloud.firestore {
         }
 
         function imageMessage(d, cid) {
-          return nullOrString(d, 'text', 1000)
+          return noSystemFields(d)
+              && nullOrString(d, 'text', 1000)
               && d.get('mediaPath', null) is string
               && d.mediaPath.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+')
               && (d.get('thumbnailPath', null) == null
@@ -278,12 +415,20 @@ service cloud.firestore {
               && (d.get('height', null) == null || (d.height is int && d.height > 0));
         }
 
-        function canSend(cid) {
-          let conv = get(convRef(cid)).data;
+        function canSendDirect(conv) {
           let other = otherMember(conv, request.auth.uid);
           return request.auth.uid in conv.memberIds
               && !isBlocked(other, request.auth.uid)
               && !isBlocked(request.auth.uid, other);
+        }
+
+        // Groups: membership only. Per-pair blocks are NOT enforced (rules
+        // cannot iterate over members).
+        function canSend(cid) {
+          let conv = get(convRef(cid)).data;
+          return conv.get('type', null) == 'group'
+              ? request.auth.uid in conv.memberIds
+              : canSendDirect(conv);
         }
 
         allow read: if isMember(cid);
@@ -294,6 +439,7 @@ service cloud.firestore {
         // timestamp is set. Nothing else may change.
         allow update: if signedIn() && isMember(cid)
                       && resource.data.senderId == request.auth.uid
+                      && resource.data.get('type', null) != 'system'
                       && resource.data.get('deletedForEveryoneAt', null) == null
                       && request.time < resource.data.createdAt + duration.value(48, 'h')
                       && request.resource.data.diff(resource.data).affectedKeys()
@@ -315,6 +461,32 @@ service cloud.firestore {
           allow delete: if isOwner(reactorUid) && isMember(cid);
         }
       }
+    }
+
+    // ---------- group invites (code -> gid; join needs admin approval) ----------
+    match /groupInvites/{code} {
+      function inviteGroupName(gid) {
+        return get(convRef(gid)).data.name;
+      }
+      allow get: if signedIn();
+      // Only queries constrained to the caller's own invites.
+      allow list: if signedIn() && resource.data.createdBy == request.auth.uid;
+      allow create: if signedIn()
+                    && code.matches('^[A-Za-z0-9]{10,24}$')
+                    && request.resource.data.keys().hasOnly(['gid', 'groupName', 'createdBy', 'createdAt', 'active'])
+                    && request.resource.data.keys().hasAll(['gid', 'groupName', 'createdBy', 'createdAt', 'active'])
+                    && request.resource.data.gid is string
+                    && request.resource.data.gid.matches('^g_[a-z0-9]{32}$')
+                    && isGroupAdmin(request.resource.data.gid)
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.active == true
+                    && request.resource.data.groupName == inviteGroupName(request.resource.data.gid);
+      allow update: if isGroupAdmin(resource.data.gid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'groupName'])
+                    && request.resource.data.active is bool
+                    && request.resource.data.groupName == inviteGroupName(resource.data.gid);
+      allow delete: if isGroupAdmin(resource.data.gid);
     }
 
     // ---------- presence (online / last seen) ----------

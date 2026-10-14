@@ -342,5 +342,206 @@
         "type": "String"
       }
     }
-  }
+  },
+  "startSheetTitle": "Start something new",
+  "newChatDesc": "Message someone by their username",
+  "newGroup": "New group",
+  "newGroupDesc": "Chat with up to {max} people",
+  "@newGroupDesc": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "joinWithCode": "Join with a code",
+  "joinWithCodeDesc": "Use an invite code from a group admin",
+  "membersCount": "{count, plural, =1{1 member} other{{count} members}}",
+  "@membersCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "addMembers": "Add members",
+  "selectMembers": "Select members",
+  "membersSelected": "{count} of {max} selected",
+  "@membersSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "searchYourChats": "Search your chats",
+  "addByUsername": "Add by username",
+  "noContactsYet": "No chats yet. Add people by their exact username below.",
+  "groupName": "Group name",
+  "groupNameHint": "Name your group",
+  "groupPhotoOptional": "Group photo (optional)",
+  "createGroup": "Create group",
+  "next": "Next",
+  "groupInfo": "Group info",
+  "admin": "Admin",
+  "youLower": "you",
+  "makeAdmin": "Make admin",
+  "removeAdmin": "Remove as admin",
+  "removeFromGroup": "Remove from group",
+  "leaveGroup": "Leave group",
+  "leaveGroupTitle": "Leave this group?",
+  "leaveGroupBody": "You won't get new messages from {name}. To come back, an admin has to approve you again.",
+  "@leaveGroupBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "removeMemberTitle": "Remove {name}?",
+  "@removeMemberTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "removeMemberBody": "They won't see new messages in this group.",
+  "editGroupName": "Edit group name",
+  "groupFull": "This group is full (up to {max} people).",
+  "@groupFull": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "cannotRemoveLastAdmin": "Make someone else an admin first.",
+  "memberLimitReached": "Groups can have up to {max} people.",
+  "@memberLimitReached": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "onlyAdminsCan": "Only admins can do this.",
+  "inviteCode": "Invite code",
+  "inviteCodeHelp": "Share this code. People who use it can ask to join; an admin approves them.",
+  "createInviteCode": "Create invite code",
+  "resetInviteCode": "Create a new code",
+  "turnOffInvite": "Turn off",
+  "copyCode": "Copy code",
+  "shareCode": "Share",
+  "inviteShareText": "Join \"{name}\" on Hushlo. Use this invite code: {code}",
+  "@inviteShareText": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "code": {
+        "type": "String"
+      }
+    }
+  },
+  "codeCopied": "Code copied",
+  "noActiveInvite": "No active invite code.",
+  "joinRequests": "Join requests",
+  "noJoinRequests": "No pending requests.",
+  "approve": "Approve",
+  "reject": "Reject",
+  "requestsPending": "{count} pending",
+  "@requestsPending": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "joinGroupTitle": "Join a group",
+  "enterInviteCode": "Invite code",
+  "pasteCode": "Paste",
+  "findGroup": "Find group",
+  "invalidInviteCode": "That code isn't valid or has been turned off.",
+  "requestToJoin": "Request to join",
+  "requestSent": "Request sent. An admin needs to approve it.",
+  "alreadyMember": "You're already in this group.",
+  "cancelRequest": "Cancel request",
+  "joinGroupHelp": "Ask a group admin for an invite code, then enter it here.",
+  "sysAdded": "{actor} added {target}",
+  "@sysAdded": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "sysRemoved": "{actor} removed {target}",
+  "@sysRemoved": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      },
+      "target": {
+        "type": "String"
+      }
+    }
+  },
+  "sysLeft": "{actor} left",
+  "@sysLeft": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "sysRenamed": "{actor} changed the group name",
+  "@sysRenamed": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "groupUpdated": "Group updated",
+  "notInGroup": "You're no longer in this group.",
+  "typingOne": "{name} is typing…",
+  "@typingOne": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "typingMany": "{names} are typing…",
+  "@typingMany": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "messageInfo": "Message info",
+  "infoRead": "Read",
+  "infoDelivered": "Delivered",
+  "infoSent": "Sent, not delivered yet",
+  "infoNobody": "Nobody yet",
+  "groupCreatedBy": "Created by {name}",
+  "@groupCreatedBy": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "groupMembersTitle": "Members",
+  "changeGroupPhoto": "Change group photo",
+  "errGroupGeneric": "Couldn't update the group. Please try again.",
+  "viewInfo": "Info"
 }

@@ -1,6 +1,9 @@
 import '../../../../core/errors/failure.dart';
 
-enum MessageType { text, image }
+enum MessageType { text, image, system }
+
+/// Group membership/name events rendered as centred notices in a group chat.
+enum GroupEvent { added, removed, left, renamed }
 
 /// sending -> sent (stored on the server) -> delivered (the recipient's app
 /// has received it) -> read (the recipient opened the chat, and has read
@@ -28,6 +31,33 @@ SendStatus resolveStatus(ChatMessage m, Receipts? r) {
   return SendStatus.sent;
 }
 
+/// Status of one of *my* messages in a group: delivered only when **every**
+/// other member has received it, read only when every other member has read it.
+SendStatus resolveGroupStatus(
+  ChatMessage m,
+  Map<String, Receipts> receiptsByUid,
+  Iterable<String> others,
+) {
+  if (m.status == SendStatus.sending || m.status == SendStatus.failed) {
+    return m.status;
+  }
+  final list = others.toList();
+  if (list.isEmpty) return SendStatus.sent;
+  var allDelivered = true;
+  var allRead = true;
+  for (final uid in list) {
+    final s = resolveStatus(m, receiptsByUid[uid]);
+    if (s != SendStatus.read) allRead = false;
+    if (s != SendStatus.read && s != SendStatus.delivered) allDelivered = false;
+  }
+  if (allRead) return SendStatus.read;
+  if (allDelivered) return SendStatus.delivered;
+  return SendStatus.sent;
+}
+
+/// Per-member status of one of my messages (for the "Message info" screen).
+SendStatus memberStatus(ChatMessage m, Receipts? r) => resolveStatus(m, r);
+
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -42,7 +72,15 @@ class ChatMessage {
     this.height,
     this.replyToId,
     this.deleted = false,
+    this.event,
+    this.targetUid,
   });
+
+  /// Set for `MessageType.system` messages.
+  final GroupEvent? event;
+  final String? targetUid;
+
+  bool get isSystem => type == MessageType.system;
 
   final String id;
   final String senderId;
@@ -70,7 +108,9 @@ class ChatMessage {
 
   /// Short description for reply quotes / previews.
   String previewText(String photoLabel) =>
-      isImage
+      isSystem
+          ? ''
+          : isImage
           ? ((text?.isNotEmpty ?? false) ? text! : photoLabel)
           : (text ?? '');
 }

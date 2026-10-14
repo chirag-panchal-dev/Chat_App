@@ -52,3 +52,32 @@ final typingClockProvider = StreamProvider.autoDispose<DateTime>((ref) async* {
   yield DateTime.now();
   yield* Stream.periodic(const Duration(seconds: 2), (_) => DateTime.now());
 });
+
+/// Everyone's receipts in a group conversation (uid -> receipts).
+final groupReceiptsProvider = StreamProvider.autoDispose
+    .family<Map<String, Receipts>, String>((ref, cid) {
+      return ref.watch(chatRepositoryProvider).watchAllReceipts(cid);
+    });
+
+/// Everyone's typing signals in a group conversation.
+final typingUsersProvider = StreamProvider.autoDispose
+    .family<Map<String, DateTime>, String>((ref, cid) {
+      return ref.watch(chatRepositoryProvider).watchTypingAll(cid);
+    });
+
+/// Uids (other than [me]) who are typing right now, in stable order.
+List<String> typingUids(
+  Map<String, DateTime>? signals,
+  String me, [
+  DateTime? now,
+]) {
+  if (signals == null) return const [];
+  final n = now ?? DateTime.now();
+  final out =
+      signals.entries
+          .where((e) => e.key != me && isTypingNow(e.value, n))
+          .map((e) => e.key)
+          .toList()
+        ..sort();
+  return out;
+}

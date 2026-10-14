@@ -1562,6 +1562,468 @@ abstract class AppL10n {
   /// In en, this message translates to:
   /// **'Chat cleared'**
   String get chatCleared;
+
+  /// No description provided for @startSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Start something new'**
+  String get startSheetTitle;
+
+  /// No description provided for @newChatDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Message someone by their username'**
+  String get newChatDesc;
+
+  /// No description provided for @newGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'New group'**
+  String get newGroup;
+
+  /// No description provided for @newGroupDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat with up to {max} people'**
+  String newGroupDesc(int max);
+
+  /// No description provided for @joinWithCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Join with a code'**
+  String get joinWithCode;
+
+  /// No description provided for @joinWithCodeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Use an invite code from a group admin'**
+  String get joinWithCodeDesc;
+
+  /// No description provided for @membersCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 member} other{{count} members}}'**
+  String membersCount(int count);
+
+  /// No description provided for @addMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Add members'**
+  String get addMembers;
+
+  /// No description provided for @selectMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'Select members'**
+  String get selectMembers;
+
+  /// No description provided for @membersSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of {max} selected'**
+  String membersSelected(int count, int max);
+
+  /// No description provided for @searchYourChats.
+  ///
+  /// In en, this message translates to:
+  /// **'Search your chats'**
+  String get searchYourChats;
+
+  /// No description provided for @addByUsername.
+  ///
+  /// In en, this message translates to:
+  /// **'Add by username'**
+  String get addByUsername;
+
+  /// No description provided for @noContactsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No chats yet. Add people by their exact username below.'**
+  String get noContactsYet;
+
+  /// No description provided for @groupName.
+  ///
+  /// In en, this message translates to:
+  /// **'Group name'**
+  String get groupName;
+
+  /// No description provided for @groupNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name your group'**
+  String get groupNameHint;
+
+  /// No description provided for @groupPhotoOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Group photo (optional)'**
+  String get groupPhotoOptional;
+
+  /// No description provided for @createGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Create group'**
+  String get createGroup;
+
+  /// No description provided for @next.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get next;
+
+  /// No description provided for @groupInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Group info'**
+  String get groupInfo;
+
+  /// No description provided for @admin.
+  ///
+  /// In en, this message translates to:
+  /// **'Admin'**
+  String get admin;
+
+  /// No description provided for @youLower.
+  ///
+  /// In en, this message translates to:
+  /// **'you'**
+  String get youLower;
+
+  /// No description provided for @makeAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Make admin'**
+  String get makeAdmin;
+
+  /// No description provided for @removeAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove as admin'**
+  String get removeAdmin;
+
+  /// No description provided for @removeFromGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from group'**
+  String get removeFromGroup;
+
+  /// No description provided for @leaveGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave group'**
+  String get leaveGroup;
+
+  /// No description provided for @leaveGroupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave this group?'**
+  String get leaveGroupTitle;
+
+  /// No description provided for @leaveGroupBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You won\'t get new messages from {name}. To come back, an admin has to approve you again.'**
+  String leaveGroupBody(String name);
+
+  /// No description provided for @removeMemberTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {name}?'**
+  String removeMemberTitle(String name);
+
+  /// No description provided for @removeMemberBody.
+  ///
+  /// In en, this message translates to:
+  /// **'They won\'t see new messages in this group.'**
+  String get removeMemberBody;
+
+  /// No description provided for @editGroupName.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit group name'**
+  String get editGroupName;
+
+  /// No description provided for @groupFull.
+  ///
+  /// In en, this message translates to:
+  /// **'This group is full (up to {max} people).'**
+  String groupFull(int max);
+
+  /// No description provided for @cannotRemoveLastAdmin.
+  ///
+  /// In en, this message translates to:
+  /// **'Make someone else an admin first.'**
+  String get cannotRemoveLastAdmin;
+
+  /// No description provided for @memberLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'Groups can have up to {max} people.'**
+  String memberLimitReached(int max);
+
+  /// No description provided for @onlyAdminsCan.
+  ///
+  /// In en, this message translates to:
+  /// **'Only admins can do this.'**
+  String get onlyAdminsCan;
+
+  /// No description provided for @inviteCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite code'**
+  String get inviteCode;
+
+  /// No description provided for @inviteCodeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Share this code. People who use it can ask to join; an admin approves them.'**
+  String get inviteCodeHelp;
+
+  /// No description provided for @createInviteCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Create invite code'**
+  String get createInviteCode;
+
+  /// No description provided for @resetInviteCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a new code'**
+  String get resetInviteCode;
+
+  /// No description provided for @turnOffInvite.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off'**
+  String get turnOffInvite;
+
+  /// No description provided for @copyCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy code'**
+  String get copyCode;
+
+  /// No description provided for @shareCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get shareCode;
+
+  /// No description provided for @inviteShareText.
+  ///
+  /// In en, this message translates to:
+  /// **'Join \"{name}\" on Hushlo. Use this invite code: {code}'**
+  String inviteShareText(String name, String code);
+
+  /// No description provided for @codeCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Code copied'**
+  String get codeCopied;
+
+  /// No description provided for @noActiveInvite.
+  ///
+  /// In en, this message translates to:
+  /// **'No active invite code.'**
+  String get noActiveInvite;
+
+  /// No description provided for @joinRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'Join requests'**
+  String get joinRequests;
+
+  /// No description provided for @noJoinRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'No pending requests.'**
+  String get noJoinRequests;
+
+  /// No description provided for @approve.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve'**
+  String get approve;
+
+  /// No description provided for @reject.
+  ///
+  /// In en, this message translates to:
+  /// **'Reject'**
+  String get reject;
+
+  /// No description provided for @requestsPending.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} pending'**
+  String requestsPending(int count);
+
+  /// No description provided for @joinGroupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Join a group'**
+  String get joinGroupTitle;
+
+  /// No description provided for @enterInviteCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite code'**
+  String get enterInviteCode;
+
+  /// No description provided for @pasteCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste'**
+  String get pasteCode;
+
+  /// No description provided for @findGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Find group'**
+  String get findGroup;
+
+  /// No description provided for @invalidInviteCode.
+  ///
+  /// In en, this message translates to:
+  /// **'That code isn\'t valid or has been turned off.'**
+  String get invalidInviteCode;
+
+  /// No description provided for @requestToJoin.
+  ///
+  /// In en, this message translates to:
+  /// **'Request to join'**
+  String get requestToJoin;
+
+  /// No description provided for @requestSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Request sent. An admin needs to approve it.'**
+  String get requestSent;
+
+  /// No description provided for @alreadyMember.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re already in this group.'**
+  String get alreadyMember;
+
+  /// No description provided for @cancelRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel request'**
+  String get cancelRequest;
+
+  /// No description provided for @joinGroupHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a group admin for an invite code, then enter it here.'**
+  String get joinGroupHelp;
+
+  /// No description provided for @sysAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} added {target}'**
+  String sysAdded(String actor, String target);
+
+  /// No description provided for @sysRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} removed {target}'**
+  String sysRemoved(String actor, String target);
+
+  /// No description provided for @sysLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} left'**
+  String sysLeft(String actor);
+
+  /// No description provided for @sysRenamed.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} changed the group name'**
+  String sysRenamed(String actor);
+
+  /// No description provided for @groupUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Group updated'**
+  String get groupUpdated;
+
+  /// No description provided for @notInGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re no longer in this group.'**
+  String get notInGroup;
+
+  /// No description provided for @typingOne.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} is typing…'**
+  String typingOne(String name);
+
+  /// No description provided for @typingMany.
+  ///
+  /// In en, this message translates to:
+  /// **'{names} are typing…'**
+  String typingMany(String names);
+
+  /// No description provided for @messageInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Message info'**
+  String get messageInfo;
+
+  /// No description provided for @infoRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get infoRead;
+
+  /// No description provided for @infoDelivered.
+  ///
+  /// In en, this message translates to:
+  /// **'Delivered'**
+  String get infoDelivered;
+
+  /// No description provided for @infoSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent, not delivered yet'**
+  String get infoSent;
+
+  /// No description provided for @infoNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody yet'**
+  String get infoNobody;
+
+  /// No description provided for @groupCreatedBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Created by {name}'**
+  String groupCreatedBy(String name);
+
+  /// No description provided for @groupMembersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Members'**
+  String get groupMembersTitle;
+
+  /// No description provided for @changeGroupPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Change group photo'**
+  String get changeGroupPhoto;
+
+  /// No description provided for @errGroupGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update the group. Please try again.'**
+  String get errGroupGeneric;
+
+  /// No description provided for @viewInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Info'**
+  String get viewInfo;
 }
 
 class _AppL10nDelegate extends LocalizationsDelegate<AppL10n> {

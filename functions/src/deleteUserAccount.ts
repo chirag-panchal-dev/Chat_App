@@ -5,7 +5,7 @@ import { getStorage } from "firebase-admin/storage";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { FUNCTION_REGION } from "./config";
-import { isRecentAuth } from "./helpers";
+import { isRecentAuth, removeMemberFromGroup } from "./helpers";
 
 /**
  * Account deletion. Policy is documented in functions/README.md.
@@ -29,6 +29,15 @@ export const deleteUserAccount = onCall(
     const convs = await db.collection("conversations").where("memberIds", "array-contains", uid).get();
     for (const conv of convs.docs) {
       await removeFromConversation(db, bw, bucket, conv.ref, uid);
+    }
+    await bw.flush();
+
+    // 1b. Join requests the user filed in any group, and their invites (deactivated).
+    for (const jr of (await db.collectionGroup("joinRequests").where("uid", "==", uid).get()).docs) {
+      void bw.delete(jr.ref);
+    }
+    for (const inv of (await db.collection("groupInvites").where("createdBy", "==", uid).get()).docs) {
+      void bw.update(inv.ref, { active: false });
     }
     await bw.flush();
 
@@ -87,6 +96,7 @@ async function removeFromConversation(
   await db.recursiveDelete(convRef.collection("members").doc(uid), bw);
   void bw.delete(convRef.collection("receipts").doc(uid));
   void bw.delete(convRef.collection("typing").doc(uid));
+  void bw.delete(convRef.collection("joinRequests").doc(uid));
 
   // Media uploaded by the user in this conversation.
   await bucket.deleteFiles({ prefix: `chatMedia/${cid}/${uid}/`, force: true });
@@ -95,9 +105,16 @@ async function removeFromConversation(
   // Re-derive the summary if it pointed at a deleted message.
   const conv = (await convRef.get()).data() ?? {};
   const update: Record<string, unknown> = { deletedAccounts: FieldValue.arrayUnion(uid) };
+  const isGroup = conv.type === "group";
+  if (isGroup) {
+    const next = removeMemberFromGroup(conv.memberIds, conv.adminIds, uid);
+    update.memberIds = next.memberIds;
+    update.adminIds = next.adminIds;
+  }
   if (conv.lastSenderId === uid) {
-    const latest = await messages.orderBy("createdAt", "desc").limit(1).get();
-    const l = latest.docs[0];
+    // System (group event) messages are never the summary.
+    const latest = await messages.orderBy("createdAt", "desc").limit(10).get();
+    const l = latest.docs.find((d) => d.data().type !== "system");
     update.lastMessageId = l ? l.id : null;
     update.lastMessageAt = l ? l.data().createdAt : null;
     update.lastMessagePreview = l ? (l.data().type === "image" ? "Photo" : String(l.data().text ?? "").slice(0, 80)) : null;
@@ -109,7 +126,8 @@ async function removeFromConversation(
   const after = (await convRef.get()).data();
   const members: string[] = after?.memberIds ?? [];
   const gone: string[] = after?.deletedAccounts ?? [];
-  if (members.length > 0 && members.every((m) => gone.includes(m))) {
+  const allGone = isGroup ? members.length === 0 : members.length > 0 && members.every((m) => gone.includes(m));
+  if (allGone) {
     await db.recursiveDelete(convRef, bw);
     await bucket.deleteFiles({ prefix: `chatMedia/${cid}/`, force: true });
   }

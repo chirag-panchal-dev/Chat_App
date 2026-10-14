@@ -68,6 +68,7 @@ final inboxProvider = Provider<AsyncValue<Inbox>>((ref) {
                     isImage: m.isImage,
                     pending: m.status == SendStatus.sending,
                     deleted: m.deleted,
+                    isSystem: m.isSystem,
                   ),
         ),
       );

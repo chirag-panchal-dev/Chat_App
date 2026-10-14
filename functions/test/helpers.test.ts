@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildGroupPushBody, buildGroupPushPayload, isSystemMessage, selectGroupRecipients, removeMemberFromGroup, isOrphanCleanupCandidate,
   buildPushBody, buildPushPayload, buildSummaryPreview, isInvalidTokenErrorCode, isMuted,
   isNewerThanSummary, isOlderThan, isRecentAuth, pushSkipReason, resolveSettings, selectRecipient, truncate,
 } from "../src/helpers";
@@ -105,5 +106,42 @@ describe("recent auth / age", () => {
     expect(isOlderThan("2026-01-07T00:00:00Z", now, 48)).toBe(true);
     expect(isOlderThan("2026-01-09T00:00:00Z", now, 48)).toBe(false);
     expect(isOlderThan(undefined, now, 48)).toBe(false);
+  });
+});
+
+describe("groups", () => {
+  it("recipients: all members except sender, unique; none if sender not a member", () => {
+    expect(selectGroupRecipients(["a", "b", "c"], "b")).toEqual(["a", "c"]);
+    expect(selectGroupRecipients(["a", "b", "b"], "a")).toEqual(["b"]);
+    expect(selectGroupRecipients(["a", "b"], "z")).toEqual([]);
+    expect(selectGroupRecipients("ab", "a")).toEqual([]);
+    expect(selectGroupRecipients([1, "a"], "a")).toEqual([]);
+  });
+  it("body", () => {
+    expect(buildGroupPushBody({ type: "text", text: "hi" }, "Ann", true)).toBe("Ann: hi");
+    expect(buildGroupPushBody({ type: "image" }, "Ann", true)).toBe("Ann: Photo");
+    expect(buildGroupPushBody({ type: "text", text: "hi" }, "Ann", false)).toBe("New message");
+    expect(buildGroupPushBody({ type: "text", text: "hi" }, null, true)).toBe("Someone: hi");
+  });
+  it("payload: title is group name, data minimal", () => {
+    const p = buildGroupPushPayload({ tokens: ["t"], groupName: " Team ", conversationId: "g_x", body: "b", channelId: "m" });
+    expect(p.notification).toEqual({ title: "Team", body: "b" });
+    expect(p.data).toEqual({ conversationId: "g_x", type: "message" });
+    expect(buildGroupPushPayload({ tokens: [], groupName: "", conversationId: "g", body: "b", channelId: "m" }).notification.title).toBe("Hushlo");
+  });
+  it("system messages detected", () => {
+    expect(isSystemMessage({ type: "system" })).toBe(true);
+    expect(isSystemMessage({ type: "text" })).toBe(false);
+  });
+  it("removeMemberFromGroup", () => {
+    expect(removeMemberFromGroup(["a", "b", "c"], ["a"], "b")).toEqual({ memberIds: ["a", "c"], adminIds: ["a"] });
+    expect(removeMemberFromGroup(["a", "b", "c"], ["a"], "a")).toEqual({ memberIds: ["b", "c"], adminIds: ["b"] });
+    expect(removeMemberFromGroup(["a", "b", "c"], ["a", "c"], "a")).toEqual({ memberIds: ["b", "c"], adminIds: ["c"] });
+    expect(removeMemberFromGroup(["a"], ["a"], "a")).toEqual({ memberIds: [], adminIds: [] });
+  });
+  it("orphan cleanup never targets groupAvatars", () => {
+    expect(isOrphanCleanupCandidate("chatMedia/c/u/f")).toBe(true);
+    expect(isOrphanCleanupCandidate("groupAvatars/g_x/f")).toBe(false);
+    expect(isOrphanCleanupCandidate("avatars/u/f")).toBe(false);
   });
 });

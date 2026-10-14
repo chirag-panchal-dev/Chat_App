@@ -29,8 +29,17 @@ class FirestoreChatRepository implements ChatRepository {
     final type = switch (typeName) {
       'text' => MessageType.text,
       'image' => MessageType.image,
+      'system' => MessageType.system,
       _ => null,
     };
+    final event = switch (d['event']) {
+      'added' => GroupEvent.added,
+      'removed' => GroupEvent.removed,
+      'left' => GroupEvent.left,
+      'renamed' => GroupEvent.renamed,
+      _ => null,
+    };
+    if (type == MessageType.system && event == null) return null;
     if (type == null) return null; // unknown/invalid document: skip safely
     return ChatMessage(
       id: s.id,
@@ -45,6 +54,8 @@ class FirestoreChatRepository implements ChatRepository {
       height: (d['height'] as num?)?.toInt(),
       replyToId: d['replyToMessageId'] as String?,
       deleted: d['deletedForEveryoneAt'] != null,
+      event: event,
+      targetUid: d['targetUid'] as String?,
     );
   }
 
@@ -198,6 +209,53 @@ class FirestoreChatRepository implements ChatRepository {
         );
       })
       .handleError((Object e) => throw Failure.from(e));
+
+  @override
+  Stream<Map<String, Receipts>> watchAllReceipts(String cid) => _db
+      .collection('conversations/$cid/receipts')
+      .snapshots()
+      .map((q) {
+        DateTime? t(Object? v) => v is Timestamp ? v.toDate() : null;
+        return {
+          for (final d in q.docs)
+            d.id: Receipts(
+              lastDeliveredAt: t(d.data()['lastDeliveredAt']),
+              lastReadAt: t(d.data()['lastReadAt']),
+            ),
+        };
+      })
+      .handleError((Object e) => throw Failure.from(e));
+
+  @override
+  Stream<Map<String, DateTime>> watchTypingAll(String cid) {
+    final seen = <String, DateTime>{};
+    var first = true;
+    return _db
+        .collection('conversations/$cid/typing')
+        .snapshots()
+        .map((q) {
+          final initial = first;
+          first = false;
+          for (final ch in q.docChanges) {
+            final uid = ch.doc.id;
+            if (ch.type == DocumentChangeType.removed) {
+              seen.remove(uid);
+              continue;
+            }
+            final v = ch.doc.data()?['typingAt'];
+            if (v is! Timestamp) continue;
+            // Opening a chat must not show stale "typing" from earlier.
+            if (initial &&
+                DateTime.now().difference(v.toDate()).abs() >
+                    const Duration(seconds: 8)) {
+              continue;
+            }
+            seen[uid] = DateTime.now(); // local receipt time (skew-proof)
+          }
+          return Map<String, DateTime>.of(seen);
+        })
+        .handleError((Object e) => throw Failure.from(e));
+  }
 
   @override
   Future<void> markDelivered(String cid, String uid) async {

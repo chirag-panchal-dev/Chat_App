@@ -21,10 +21,22 @@ class FirestoreConversationRepository implements ConversationRepository {
     final d = s.data();
     if (d == null) return null;
     final members = (d['memberIds'] as List?)?.whereType<String>().toList();
-    if (members == null || members.length != 2) return null; // invalid doc
+    final isGroup = d['type'] == 'group';
+    if (members == null ||
+        (isGroup
+            ? members.isEmpty || members.length > maxGroupMembers
+            : members.length != 2)) {
+      return null; // invalid doc
+    }
     return Conversation(
       id: s.id,
       memberIds: members,
+      type: isGroup ? ConversationType.group : ConversationType.direct,
+      name: d['name'] as String?,
+      photoPath: d['photoPath'] as String?,
+      adminIds:
+          (d['adminIds'] as List?)?.whereType<String>().toList() ?? const [],
+      createdBy: d['createdBy'] as String?,
       lastMessagePreview: d['lastMessagePreview'] as String?,
       lastMessageAt: _dt(d['lastMessageAt']),
       lastSenderId: d['lastSenderId'] as String?,

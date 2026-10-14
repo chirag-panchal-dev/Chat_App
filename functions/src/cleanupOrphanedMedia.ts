@@ -4,7 +4,7 @@ import { getStorage } from "firebase-admin/storage";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { FUNCTION_REGION } from "./config";
-import { isOlderThan } from "./helpers";
+import { isOlderThan, isOrphanCleanupCandidate } from "./helpers";
 
 const MAX_FILES_PER_RUN = 500;
 const MIN_AGE_HOURS = 48;
@@ -33,6 +33,7 @@ export const cleanupOrphanedMedia = onSchedule(
     let deleted = 0;
     let referenced = 0;
     for (const f of files) {
+      if (!isOrphanCleanupCandidate(f.name)) continue; // never touch groupAvatars/ etc.
       if (!isOlderThan(f.metadata.timeCreated as string | undefined, Date.now(), MIN_AGE_HOURS)) continue;
       const [a, b] = await Promise.all([
         db.collectionGroup("messages").where("mediaPath", "==", f.name).limit(1).get(),

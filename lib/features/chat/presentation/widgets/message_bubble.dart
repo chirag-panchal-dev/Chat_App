@@ -8,6 +8,7 @@ import '../../../../core/firebase/media_url_provider.dart';
 import '../../../../core/l10n/l10n_ext.dart';
 import '../../../../core/theme/hushlo_colors.dart';
 import '../../../../core/utils/date_format.dart';
+import '../../../../core/widgets/user_avatar.dart';
 import '../../../attachments/data/image_processor.dart';
 import '../../domain/entities/chat_message.dart';
 import '../viewmodels/chat_view_model.dart';
@@ -31,6 +32,8 @@ class MessageBubble extends ConsumerWidget {
     this.onSwipeReply,
     this.onReplyTap,
     this.onReactionTap,
+    this.senderName,
+    this.avatarSlot,
   });
 
   final String conversationId;
@@ -54,11 +57,29 @@ class MessageBubble extends ConsumerWidget {
   /// Tap on a reaction chip with that emoji (toggles my reaction).
   final ValueChanged<String>? onReactionTap;
 
+  /// Group chats: sender name shown above the first bubble of a run.
+  final String? senderName;
+
+  /// Group chats: avatar column on the left of incoming bubbles.
+  final Widget? avatarSlot;
+
+  /// Group chats put a small avatar column to the left of incoming bubbles.
+  Widget _withAvatar(Widget bubble) {
+    final slot = avatarSlot;
+    if (slot == null) return bubble;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [SizedBox(width: 38, child: slot), Flexible(child: bubble)],
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final fg = mine ? c.onBubbleOut : c.onBubbleIn;
-    final maxW = MediaQuery.sizeOf(context).width * 0.78;
+    final maxW =
+        MediaQuery.sizeOf(context).width * 0.78 - (avatarSlot != null ? 40 : 0);
     final locale = Localizations.localeOf(context).toString();
     final reactions =
         ref
@@ -150,6 +171,24 @@ class MessageBubble extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (senderName != null && !mine)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  senderName!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color:
+                        Theme.of(context).brightness == Brightness.dark
+                            ? avatarGradient(senderName!).first
+                            : avatarGradient(senderName!).last,
+                  ),
+                ),
+              ),
             if (message.deleted)
               Stack(
                 children: [
@@ -275,21 +314,23 @@ class MessageBubble extends ConsumerWidget {
       padding: EdgeInsets.fromLTRB(12, isGroupStart ? 6 : 1.5, 12, 0),
       child: Align(
         alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-        child: Column(
-          crossAxisAlignment:
-              mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            content,
-            if (!message.deleted && reactions.isNotEmpty)
-              Transform.translate(
-                offset: const Offset(0, -6),
-                child: _ReactionChips(
-                  reactions: reactions,
-                  myUid: myUid,
-                  onTap: onReactionTap,
+        child: _withAvatar(
+          Column(
+            crossAxisAlignment:
+                mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              content,
+              if (!message.deleted && reactions.isNotEmpty)
+                Transform.translate(
+                  offset: const Offset(0, -6),
+                  child: _ReactionChips(
+                    reactions: reactions,
+                    myUid: myUid,
+                    onTap: onReactionTap,
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

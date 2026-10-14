@@ -1,7 +1,17 @@
+enum ConversationType { direct, group }
+
+/// Hard product limit for group size (enforced by the security rules too).
+const maxGroupMembers = 20;
+
 class Conversation {
   const Conversation({
     required this.id,
     required this.memberIds,
+    this.type = ConversationType.direct,
+    this.name,
+    this.photoPath,
+    this.adminIds = const [],
+    this.createdBy,
     this.lastMessagePreview,
     this.lastMessageAt,
     this.lastSenderId,
@@ -10,15 +20,32 @@ class Conversation {
 
   final String id;
   final List<String> memberIds;
+  final ConversationType type;
+
+  /// Group name / avatar path (null for direct chats).
+  final String? name;
+  final String? photoPath;
+  final List<String> adminIds;
+  final String? createdBy;
   final String? lastMessagePreview;
   final DateTime? lastMessageAt;
   final String? lastSenderId;
   final List<String> deletedAccounts;
 
+  bool get isGroup => type == ConversationType.group;
+  bool isAdmin(String uid) => adminIds.contains(uid);
+  bool isMember(String uid) => memberIds.contains(uid);
+
+  /// The other participant of a *direct* chat.
   String otherUid(String me) =>
       memberIds.firstWhere((m) => m != me, orElse: () => me);
 
-  bool otherDeleted(String me) => deletedAccounts.contains(otherUid(me));
+  /// Members other than [me] (everyone you need receipts from in a group).
+  List<String> othersOf(String me) =>
+      memberIds.where((m) => m != me && !deletedAccounts.contains(m)).toList();
+
+  bool otherDeleted(String me) =>
+      !isGroup && deletedAccounts.contains(otherUid(me));
 }
 
 /// Per-user conversation preferences (mute / pin / archive / read marker).
@@ -94,8 +121,10 @@ class InboxLastMessage {
     required this.isImage,
     this.pending = false,
     this.deleted = false,
+    this.isSystem = false,
   });
   final bool deleted;
+  final bool isSystem;
   final DateTime at;
   final String senderId;
   final String preview; // text, or caption, or '' for an uncaptioned photo

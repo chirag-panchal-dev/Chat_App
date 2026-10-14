@@ -45,6 +45,13 @@ import 'package:hushlo/features/user_search/presentation/viewmodels/user_search_
 import 'package:hushlo/features/account_deletion/presentation/delete_account_screen.dart';
 import 'package:hushlo/features/attachments/presentation/screens/attachment_preview_screen.dart';
 import 'package:hushlo/l10n/app_localizations.dart';
+import 'package:hushlo/features/groups/domain/group_models.dart';
+import 'package:hushlo/features/groups/presentation/screens/group_info_screen.dart';
+import 'package:hushlo/features/groups/presentation/screens/join_group_screen.dart';
+import 'package:hushlo/features/groups/presentation/screens/new_group_screen.dart';
+import 'package:hushlo/features/groups/presentation/viewmodels/group_builder_view_model.dart';
+import 'package:hushlo/features/groups/presentation/viewmodels/group_providers.dart';
+import 'package:hushlo/features/chat/presentation/screens/message_info_screen.dart';
 import 'package:hushlo/core/firebase/media_url_provider.dart';
 import '../../test/features/fakes.dart';
 
@@ -160,6 +167,51 @@ class _FakeChatVM extends ChatViewModel {
   ChatState build() => s;
 }
 
+const _team = Conversation(
+  id: 'g_team',
+  memberIds: [_me, 'aarav', 'meera', 'rohan', 'ishita'],
+  type: ConversationType.group,
+  name: 'Weekend Trip',
+  adminIds: [_me, 'meera'],
+  createdBy: _me,
+);
+
+class _FakeBuilder extends GroupBuilderViewModel {
+  _FakeBuilder(super.capacity, this.s);
+  final GroupBuilderState s;
+  @override
+  GroupBuilderState build() => s;
+}
+
+ChatState _groupChatState() {
+  ChatMessage sys(
+    String id,
+    DateTime at,
+    String sender,
+    GroupEvent e, {
+    String? target,
+  }) => ChatMessage(
+    id: id,
+    senderId: sender,
+    type: MessageType.system,
+    createdAt: at,
+    status: SendStatus.sent,
+    event: e,
+    targetUid: target,
+  );
+  final msgs = <ChatMessage>[
+    _m('9', 'me', _t(18, 5), 'On my way!'),
+    _m('8', 'rohan', _t(18, 4), 'Same, 10 minutes'),
+    _m('7', 'rohan', _t(18, 3), 'Can someone grab snacks?'),
+    _m('6', 'meera', _t(18, 1), 'Booked the tickets!'),
+    _m('5', 'aarav', _t(17, 58), 'Meet at the station at 7?'),
+    sys('4', _t(17, 50), 'me', GroupEvent.added, target: 'ishita'),
+    sys('3', _t(17, 49), 'me', GroupEvent.renamed),
+    _m('2', 'me', _t(17, 48), 'Welcome everyone, plan the trip here.'),
+  ];
+  return ChatState(latest: msgs, loading: false, hasMore: false);
+}
+
 class _FakeSearch extends UserSearchViewModel {
   _FakeSearch(this.s);
   final UserSearchState s;
@@ -227,9 +279,50 @@ List<Override> _base({
   ),
   conversationProvider.overrideWith(
     (ref, id) => Stream.value(
-      Conversation(id: id, memberIds: [id.split('_').first, _me]),
+      id == 'g_team'
+          ? _team
+          : Conversation(id: id, memberIds: [id.split('_').first, _me]),
     ),
   ),
+  groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+  groupReceiptsProvider.overrideWith(
+    (ref, id) => Stream.value({
+      'aarav': Receipts(
+        lastDeliveredAt: DateTime.now(),
+        lastReadAt: DateTime.now(),
+      ),
+      'meera': Receipts(
+        lastDeliveredAt: DateTime.now(),
+        lastReadAt: DateTime.now(),
+      ),
+      'rohan': Receipts(lastDeliveredAt: DateTime.now()),
+    }),
+  ),
+  typingUsersProvider.overrideWith(
+    (ref, id) => Stream.value(const <String, DateTime>{}),
+  ),
+  directContactsProvider.overrideWithValue(const [
+    'aarav',
+    'meera',
+    'rohan',
+    'ishita',
+    'dev',
+  ]),
+  myInviteProvider.overrideWith(
+    (ref, id) => Stream.value(
+      const GroupInvite(
+        code: 'kP4tQ9wXz2Ab',
+        groupId: 'g_team',
+        groupName: 'Weekend Trip',
+      ),
+    ),
+  ),
+  joinRequestsProvider.overrideWith(
+    (ref, id) => Stream.value([
+      JoinRequest(uid: 'dev', code: 'x', createdAt: DateTime.now()),
+    ]),
+  ),
+  myJoinRequestProvider.overrideWith((ref, id) => Stream.value(false)),
 ];
 
 Inbox _inbox() {
@@ -261,6 +354,17 @@ Inbox _inbox() {
     ),
   );
   final items = [
+    InboxItem(
+      _team,
+      MemberPrefs(lastReadAt: _t(9, 0)),
+      me: _me,
+      lastMessage: InboxLastMessage(
+        at: _t(18, 1),
+        senderId: 'meera',
+        preview: 'Booked the tickets!',
+        isImage: false,
+      ),
+    ),
     it(
       'aarav',
       'Sent you the final designs, check when free ✨',
@@ -451,18 +555,93 @@ void main() {
       t.view.physicalSize = const Size(390, 844) * 3;
       t.view.devicePixelRatio = 3;
       addTearDown(t.view.reset);
-      await t.pumpWidget(RepaintBoundary(
-        key: _boundary,
-        child: _app(const ChatScreen(conversationId: 'aarav_me'), [
-          ..._base(),
-          chatViewModelProvider('aarav_me').overrideWith(() => _FakeChatVM('aarav_me', _chatState())),
-        ], dark ? ThemeMode.dark : ThemeMode.light),
-      ));
+      await t.pumpWidget(
+        RepaintBoundary(
+          key: _boundary,
+          child: _app(
+            const ChatScreen(conversationId: 'aarav_me'),
+            [
+              ..._base(),
+              chatViewModelProvider(
+                'aarav_me',
+              ).overrideWith(() => _FakeChatVM('aarav_me', _chatState())),
+            ],
+            dark ? ThemeMode.dark : ThemeMode.light,
+          ),
+        ),
+      );
       await t.pump(const Duration(milliseconds: 600));
       await t.tap(find.byTooltip('More options'));
       await t.pump(const Duration(milliseconds: 600));
       expect(find.text('Clear chat'), findsOneWidget);
       await _shot(t, '06c_menu_${dark ? 'dark' : 'light'}');
+    });
+    testWidgets('group chat ${dark ? 'dark' : 'light'}', (t) async {
+      await run(
+        t,
+        '12_group_chat',
+        const ChatScreen(conversationId: 'g_team'),
+        [
+          ..._base(),
+          chatViewModelProvider(
+            'g_team',
+          ).overrideWith(() => _FakeChatVM('g_team', _groupChatState())),
+          typingUsersProvider('g_team').overrideWith(
+            (ref) => Stream.value({
+              'aarav': DateTime.now(),
+              'meera': DateTime.now(),
+            }),
+          ),
+          typingClockProvider.overrideWith(
+            (ref) => Stream.value(DateTime.now()),
+          ),
+        ],
+        dark: dark,
+      );
+    });
+    testWidgets('group info ${dark ? 'dark' : 'light'}', (t) async {
+      await run(
+        t,
+        '13_group_info',
+        const GroupInfoScreen(groupId: 'g_team'),
+        _base(),
+        dark: dark,
+        size: const Size(390, 1500),
+      );
+    });
+    testWidgets('new group ${dark ? 'dark' : 'light'}', (t) async {
+      await run(t, '14_new_group', const NewGroupScreen(), [
+        ..._base(),
+        groupBuilderProvider(19).overrideWith(
+          () => _FakeBuilder(
+            19,
+            const GroupBuilderState(selected: ['aarav', 'meera']),
+          ),
+        ),
+      ], dark: dark);
+    });
+    testWidgets('join group ${dark ? 'dark' : 'light'}', (t) async {
+      await run(
+        t,
+        '15_join_group',
+        const JoinGroupScreen(),
+        _base(),
+        dark: dark,
+      );
+    });
+    testWidgets('message info ${dark ? 'dark' : 'light'}', (t) async {
+      await run(
+        t,
+        '16_message_info',
+        const MessageInfoScreen(conversationId: 'g_team', messageId: '9'),
+        [
+          ..._base(),
+          chatViewModelProvider(
+            'g_team',
+          ).overrideWith(() => _FakeChatVM('g_team', _groupChatState())),
+        ],
+        dark: dark,
+      );
     });
     testWidgets('contact info ${dark ? 'dark' : 'light'}', (t) async {
       await run(

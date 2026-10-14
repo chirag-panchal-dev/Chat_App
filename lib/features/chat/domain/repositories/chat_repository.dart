@@ -59,6 +59,12 @@ abstract interface class ChatRepository {
   /// The given user's delivery/read receipts for this conversation.
   Stream<Receipts> watchReceipts(String conversationId, String uid);
 
+  /// Everyone's receipts in the conversation, keyed by uid (group chats).
+  Stream<Map<String, Receipts>> watchAllReceipts(String conversationId);
+
+  /// Everyone's typing signals keyed by uid -> local receipt time (groups).
+  Stream<Map<String, DateTime>> watchTypingAll(String conversationId);
+
   /// Records that [uid]'s app has received messages up to now.
   Future<void> markDelivered(String conversationId, String uid);
 

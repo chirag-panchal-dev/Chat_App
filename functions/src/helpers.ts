@@ -156,3 +156,75 @@ export function isOlderThan(timeCreatedIso: string | undefined, nowMillis: numbe
   if (Number.isNaN(t)) return false;
   return nowMillis - t > hours * 3600 * 1000;
 }
+
+// ---------------------------------------------------------------------------
+// Groups
+// ---------------------------------------------------------------------------
+
+export const MAX_GROUP_MEMBERS = 20;
+
+/** System (event) messages never push and never update the summary. */
+export function isSystemMessage(msg: MessageLike): boolean {
+  return msg.type === "system";
+}
+
+/** Group push recipients: every unique string member except the sender; [] if sender is not a member. */
+export function selectGroupRecipients(memberIds: unknown, senderId: string): string[] {
+  if (!Array.isArray(memberIds) || !memberIds.every((m) => typeof m === "string")) return [];
+  const members = memberIds as string[];
+  if (!members.includes(senderId)) return [];
+  return Array.from(new Set(members)).filter((m) => m !== senderId);
+}
+
+/** Group push body: `${sender}: ${text}` / `${sender}: Photo` when previews are on, else 'New message'. */
+export function buildGroupPushBody(
+  msg: MessageLike,
+  senderDisplayName: string | null | undefined,
+  showMessagePreview: boolean
+): string {
+  if (!showMessagePreview) return "New message";
+  const name =
+    typeof senderDisplayName === "string" && senderDisplayName.trim() !== "" ? senderDisplayName.trim() : "Someone";
+  if (msg.type === "image") return `${name}: Photo`;
+  const t = typeof msg.text === "string" ? truncate(msg.text, 120) : "";
+  return t.length > 0 ? `${name}: ${t}` : "New message";
+}
+
+/** Group multicast payload: title = group name; `data` is only {conversationId, type}. */
+export function buildGroupPushPayload(opts: {
+  tokens: string[];
+  groupName: string | null | undefined;
+  conversationId: string;
+  body: string;
+  channelId: string;
+}): PushPayload {
+  const title =
+    typeof opts.groupName === "string" && opts.groupName.trim() !== "" ? opts.groupName.trim() : "Hushlo";
+  return {
+    tokens: opts.tokens,
+    notification: { title, body: opts.body },
+    data: { conversationId: opts.conversationId, type: "message" },
+    android: { priority: "high", notification: { channelId: opts.channelId } },
+    apns: { payload: { aps: { sound: "default", "thread-id": opts.conversationId } } },
+  };
+}
+
+/**
+ * Result of removing `uid` from a group (account deletion): drops uid from members/admins;
+ * if no admin is left, promotes the first remaining member (memberIds order).
+ */
+export function removeMemberFromGroup(
+  memberIds: unknown,
+  adminIds: unknown,
+  uid: string
+): { memberIds: string[]; adminIds: string[] } {
+  const members = (Array.isArray(memberIds) ? (memberIds as string[]) : []).filter((m) => m !== uid);
+  let admins = (Array.isArray(adminIds) ? (adminIds as string[]) : []).filter((m) => m !== uid && members.includes(m));
+  if (admins.length === 0 && members.length > 0) admins = [members[0]];
+  return { memberIds: members, adminIds: admins };
+}
+
+/** Only chatMedia/ objects are orphan-cleaned; groupAvatars/ (and everything else) never. */
+export function isOrphanCleanupCandidate(objectName: string): boolean {
+  return objectName.startsWith("chatMedia/");
+}

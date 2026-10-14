@@ -26,6 +26,7 @@ import '../../../privacy_settings/presentation/viewmodels/settings_providers.dar
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
 import '../../../safety/presentation/viewmodels/safety_providers.dart';
 import '../../../safety/presentation/widgets/report_dialog.dart';
+import '../../../groups/presentation/widgets/system_message_row.dart';
 import '../../domain/entities/chat_message.dart';
 import '../viewmodels/chat_view_model.dart';
 import '../widgets/composer.dart';
@@ -433,6 +434,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               _clearSelection();
             },
           ),
+        if (single != null &&
+            !single.deleted &&
+            !single.isSystem &&
+            single.senderId == me &&
+            (ref.read(conversationProvider(_cid)).value?.isGroup ?? false))
+          IconButton(
+            tooltip: l.messageInfo,
+            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: () {
+              final id = single.id;
+              _clearSelection();
+              context.push('/chat/$_cid/message/$id');
+            },
+          ),
         if (anyText)
           IconButton(
             tooltip: l.copyMessages,
@@ -568,18 +583,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ref.watch(memberPrefsProvider(_cid)).value ?? const MemberPrefs();
     final online = ref.watch(isOnlineProvider).value ?? true;
     final blocked = ref.watch(blockedUidsProvider).value ?? const {};
+    final convValue = conv.value;
+    final isGroup = convValue?.isGroup ?? _cid.startsWith('g_');
     final otherUid =
-        conv.value?.otherUid(me) ??
-        _cid.split('_').firstWhere((u) => u != me, orElse: () => '');
-    final deleted = conv.value?.otherDeleted(me) ?? false;
+        isGroup
+            ? ''
+            : (convValue?.otherUid(me) ??
+                _cid.split('_').firstWhere((u) => u != me, orElse: () => ''));
+    final deleted = isGroup ? false : (convValue?.otherDeleted(me) ?? false);
+    // Removed from the group: the conversation can no longer be read.
+    final removedFromGroup = isGroup && conv.hasError;
     final otherProfile =
         otherUid.isEmpty
             ? null
             : ref.watch(profileByUidProvider(otherUid)).value;
     final name =
-        deleted || (otherProfile == null && !conv.isLoading)
-            ? l.deletedAccount
-            : (otherProfile?.displayName ?? '');
+        isGroup
+            ? (convValue?.name ?? '')
+            : (deleted || (otherProfile == null && !conv.isLoading)
+                ? l.deletedAccount
+                : (otherProfile?.displayName ?? ''));
     final iBlocked = blocked.contains(otherUid);
     final settings = ref.watch(settingsProvider).value;
     final peerReceipts =
@@ -589,8 +612,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 .watch(peerReceiptsProvider((cid: _cid, peer: otherUid)))
                 .value;
     final receiptsOn = settings?.readReceiptsEnabled ?? true;
+    final groupReceipts =
+        isGroup
+            ? (ref.watch(groupReceiptsProvider(_cid)).value ??
+                const <String, Receipts>{})
+            : const <String, Receipts>{};
+    final groupOthers =
+        isGroup
+            ? (convValue?.othersOf(me) ?? const <String>[])
+            : const <String>[];
     SendStatus statusOf(ChatMessage m) {
-      final st = resolveStatus(m, peerReceipts);
+      final st =
+          isGroup
+              ? resolveGroupStatus(m, groupReceipts, groupOthers)
+              : resolveStatus(m, peerReceipts);
       // Reciprocity: if I don't share read receipts, I don't see them either.
       return (!receiptsOn && st == SendStatus.read) ? SendStatus.delivered : st;
     }
@@ -614,10 +649,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         showPresence
             ? ref.watch(peerTypingProvider((cid: _cid, peer: otherUid))).value
             : null;
-    final typingNow =
+    final directTyping =
         typingAt != null
             ? isTypingNow(typingAt, ref.watch(typingClockProvider).value)
             : false;
+    final groupSignals =
+        (isGroup && (settings?.showLastSeen ?? false))
+            ? ref.watch(typingUsersProvider(_cid)).value
+            : null;
+    final groupTypingUids = typingUids(
+      groupSignals,
+      me,
+      (groupSignals?.isNotEmpty ?? false)
+          ? ref.watch(typingClockProvider).value
+          : null,
+    );
+    final typingNow = directTyping || groupTypingUids.isNotEmpty;
 
     ref.listen<ChatState>(chatViewModelProvider(_cid), (prev, next) {
       _onNewestChanged(prev, next, me);
@@ -703,9 +750,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final showDay =
               older == null ||
               !DateFormatter.isSameDay(older.createdAt, m.createdAt);
+          if (m.isSystem) {
+            return Column(
+              key: _itemKeys.putIfAbsent(m.id, GlobalKey.new),
+              children: [
+                if (showDay)
+                  _DaySeparator(
+                    DateFormatter.daySeparator(
+                      m.createdAt,
+                      locale,
+                      today: l.today,
+                      yesterday: l.yesterday,
+                    ),
+                  ),
+                SystemMessageRow(message: m, me: me),
+              ],
+            );
+          }
           final mine = m.senderId == me;
           final newer = mi > 0 ? messages[mi - 1] : null;
           bool sameRun(ChatMessage a, ChatMessage b) =>
+              !a.isSystem &&
+              !b.isSystem &&
               a.senderId == b.senderId &&
               a.createdAt.difference(b.createdAt).abs() <
                   const Duration(minutes: 5) &&
@@ -755,6 +821,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           status: mine ? statusOf(m) : null,
                           isGroupStart: groupStart,
                           isGroupEnd: groupEnd,
+                          senderName:
+                              isGroup && !mine && groupStart
+                                  ? (ref
+                                          .watch(
+                                            profileByUidProvider(m.senderId),
+                                          )
+                                          .value
+                                          ?.displayName ??
+                                      '…')
+                                  : null,
+                          avatarSlot:
+                              isGroup && !mine
+                                  ? (groupEnd
+                                      ? Padding(
+                                        padding: const EdgeInsets.only(
+                                          left: 8,
+                                          bottom: 2,
+                                        ),
+                                        child: _MiniAvatar(uid: m.senderId),
+                                      )
+                                      : const SizedBox.shrink())
+                                  : null,
                           onSwipeReply:
                               m.deleted ? null : () => vm.setReplyTo(m),
                           replyTarget:
@@ -791,7 +879,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     Widget composer;
-    if (deleted) {
+    if (removedFromGroup) {
+      composer = _Notice(text: l.notInGroup);
+    } else if (deleted) {
       composer = _Notice(text: l.accountDeletedNotice);
     } else if (iBlocked) {
       composer = _Notice(
@@ -830,7 +920,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   title: InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap:
-                        deleted ? null : () => context.push('/chat/$_cid/info'),
+                        deleted
+                            ? null
+                            : () => context.push(
+                              isGroup
+                                  ? '/chat/$_cid/group'
+                                  : '/chat/$_cid/info',
+                            ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         vertical: 4,
@@ -839,11 +935,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       child: Row(
                         children: [
                           Hero(
-                            tag: 'avatar_$otherUid',
+                            tag: isGroup ? 'avatar_$_cid' : 'avatar_$otherUid',
                             child: UserAvatar(
                               name: name,
+                              group: isGroup,
                               photoPath:
-                                  deleted ? null : otherProfile?.photoPath,
+                                  isGroup
+                                      ? convValue?.photoPath
+                                      : (deleted
+                                          ? null
+                                          : otherProfile?.photoPath),
                               size: 40,
                             ),
                           ),
@@ -859,7 +960,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(fontWeight: FontWeight.w600),
                                 ),
-                                if (!deleted && otherProfile != null)
+                                if (isGroup && convValue != null)
+                                  _GroupSubtitle(
+                                    group: convValue,
+                                    me: me,
+                                    typingUids: groupTypingUids,
+                                  )
+                                else if (!deleted && otherProfile != null)
                                   Row(
                                     children: [
                                       if (isOnlineNow)
@@ -950,6 +1057,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             } else {
                               await _mute(me);
                             }
+                          case 'group':
+                            if (context.mounted) {
+                              context.push('/chat/$_cid/group');
+                            }
                           case 'clear':
                             await _confirmClear(name);
                           case 'block':
@@ -985,6 +1096,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             ],
                           ),
                         );
+                        if (isGroup) {
+                          return [
+                            item(
+                              'group',
+                              Icons.info_outline_rounded,
+                              l.groupInfo,
+                            ),
+                            item(
+                              'pin',
+                              prefs.pinned
+                                  ? Icons.push_pin
+                                  : Icons.push_pin_outlined,
+                              prefs.pinned ? l.unpin : l.pin,
+                            ),
+                            item(
+                              'mute',
+                              prefs.isMuted()
+                                  ? Icons.notifications_active_outlined
+                                  : Icons.notifications_off_outlined,
+                              prefs.isMuted() ? l.unmute : l.mute,
+                            ),
+                            item(
+                              'archive',
+                              prefs.archived
+                                  ? Icons.unarchive_outlined
+                                  : Icons.archive_outlined,
+                              prefs.archived ? l.unarchive : l.archive,
+                            ),
+                            item(
+                              'clear',
+                              Icons.cleaning_services_outlined,
+                              l.clearChat,
+                            ),
+                          ];
+                        }
                         return [
                           item(
                             'pin',
@@ -1363,6 +1509,66 @@ class _FadeIn extends StatelessWidget {
             ),
           ),
       child: child,
+    );
+  }
+}
+
+/// Small avatar next to incoming group messages.
+class _MiniAvatar extends ConsumerWidget {
+  const _MiniAvatar({required this.uid});
+  final String uid;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = ref.watch(profileByUidProvider(uid)).value;
+    return UserAvatar(
+      name: p?.displayName ?? '?',
+      photoPath: p?.photoPath,
+      size: 28,
+    );
+  }
+}
+
+/// Header subtitle for groups: "typing…" or the member names.
+class _GroupSubtitle extends ConsumerWidget {
+  const _GroupSubtitle({
+    required this.group,
+    required this.me,
+    required this.typingUids,
+  });
+
+  final Conversation group;
+  final String me;
+  final List<String> typingUids;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
+    final c = context.colors;
+    String nameOf(String uid) =>
+        uid == me
+            ? l.you
+            : (ref.watch(profileByUidProvider(uid)).value?.displayName ?? '…');
+
+    final String text;
+    final bool typing = typingUids.isNotEmpty;
+    if (typing) {
+      final names = typingUids.take(3).map((u) => nameOf(u).split(' ').first);
+      text =
+          typingUids.length == 1
+              ? l.typingOne(names.first)
+              : l.typingMany(names.join(', '));
+    } else {
+      text = group.memberIds.map(nameOf).join(', ');
+    }
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: typing ? c.success : c.textSecondary,
+        fontWeight: typing ? FontWeight.w600 : null,
+      ),
     );
   }
 }
