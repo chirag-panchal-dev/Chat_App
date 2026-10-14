@@ -1,0 +1,346 @@
+{
+  "@@locale": "en",
+  "appName": "Hushlo",
+  "loading": "Loading",
+  "offlineBanner": "You're offline. Messages will send when you reconnect.",
+  "errorTitle": "Something went wrong",
+  "retry": "Try again",
+  "back": "Back",
+  "cancel": "Cancel",
+  "save": "Save",
+  "send": "Send",
+  "remove": "Remove",
+  "search": "Search",
+  "closeSearch": "Close search",
+  "message": "Message",
+  "copy": "Copy",
+  "copied": "Copied",
+  "reply": "Reply",
+  "react": "React",
+  "report": "Report",
+  "block": "Block",
+  "unblock": "Unblock",
+  "pin": "Pin",
+  "unpin": "Unpin",
+  "mute": "Mute",
+  "unmute": "Unmute",
+  "archive": "Archive",
+  "unarchive": "Unarchive",
+  "moreOptions": "More options",
+  "continueLabel": "Continue",
+  "or": "or",
+  "you": "You",
+  "photo": "Photo",
+  "today": "Today",
+  "yesterday": "Yesterday",
+  "unread": "Unread",
+  "pinned": "Pinned",
+  "muted": "Muted",
+  "introHeadline": "Good conversations, less noise.",
+  "introBody": "A calm, private place to talk with the people you already know. No feed, no strangers.",
+  "getStarted": "Get started",
+  "haveAccount": "I already have an account",
+  "needAccount": "New here? Create an account",
+  "createAccount": "Create account",
+  "welcomeBack": "Welcome back",
+  "signIn": "Sign in",
+  "signOut": "Sign out",
+  "email": "Email",
+  "password": "Password",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "forgotPassword": "Forgot password?",
+  "resetEmailSent": "If an account exists for that email, a reset link is on its way.",
+  "continueWithGoogle": "Continue with Google",
+  "continueWithApple": "Continue with Apple",
+  "verifyEmailTitle": "Verify your email",
+  "verifyEmailBody": "We sent a verification link to {email}. Open it, then come back here.",
+  "@verifyEmailBody": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "iVerified": "I've verified my email",
+  "resendEmail": "Resend email",
+  "resendIn": "Resend in {seconds}s",
+  "@resendIn": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "verificationSent": "Verification email sent.",
+  "setupTitle": "Set up your profile",
+  "chooseAvatar": "Choose profile photo",
+  "avatarOptional": "Photo (optional)",
+  "displayName": "Display name",
+  "username": "Username",
+  "bioOptional": "Short bio (optional)",
+  "usernameHelp": "3–20 letters, numbers or underscores. Others find you by this exact name.",
+  "usernameAvailable": "Username is available",
+  "usernameChecking": "Checking…",
+  "usernameCheckFailed": "Couldn't check right now. We'll verify when you continue.",
+  "usernameLocked": "Usernames can't be changed in this version.",
+  "primerTitle": "Before you start",
+  "primerDiscover": "People can find you only by your exact username. There is no public directory.",
+  "primerStorage": "Messages and photos are stored in the cloud so they sync and keep history.",
+  "primerNotifications": "Notifications are optional and you control whether they show message text.",
+  "primerNotE2ee": "Messages are protected in transit and by access rules, but they are not end-to-end encrypted.",
+  "chatsEmptyTitle": "No conversations yet",
+  "chatsEmptyBody": "Find a friend by their username and say hello.",
+  "startConversation": "Start a conversation",
+  "newChat": "New chat",
+  "searchChats": "Search conversations",
+  "archivedChats": "Archived chats",
+  "archivedCount": "Archived ({count})",
+  "@archivedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noArchived": "No archived chats.",
+  "noResults": "No matching conversations.",
+  "notifPromptBody": "Get notified when someone messages you.",
+  "turnOn": "Turn on",
+  "deletedAccount": "Deleted account",
+  "exactUsername": "Exact username",
+  "searchHint": "Enter someone's exact username to start a chat.",
+  "userNotFound": "No one found with that username.",
+  "inviteFriend": "Invite a friend",
+  "inviteText": "Let's chat on Hushlo! My username is @{username}.",
+  "@inviteText": {
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "messageHint": "Message",
+  "attachPhoto": "Attach photo",
+  "chooseFromGallery": "Gallery",
+  "takePhoto": "Camera",
+  "cancelReply": "Cancel reply",
+  "deleteForMe": "Delete for me",
+  "newMessages": "New messages",
+  "chatEmptyTitle": "Say hello",
+  "chatEmptyBody": "This is the start of your conversation with {name}.",
+  "@chatEmptyBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "originalUnavailable": "Original message unavailable",
+  "statusSending": "Sending",
+  "statusSent": "Sent",
+  "sendFailed": "Couldn't send.",
+  "sendRejected": "This message was rejected. You may not be able to message this person.",
+  "youBlocked": "You blocked this account.",
+  "accountDeletedNotice": "This account was deleted. You can't send new messages.",
+  "blockTitle": "Block {name}?",
+  "@blockTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "blockBody": "They won't be able to message you, and you won't be able to message them. You can unblock later in Settings.",
+  "photoPermissionDenied": "Hushlo doesn't have permission to use the camera or photos.",
+  "openSettings": "Open settings",
+  "sendPhoto": "Send photo",
+  "captionHint": "Add a caption",
+  "uploading": "Uploading",
+  "reportTitle": "Report",
+  "reportBody": "Tell us what's wrong. Reports are reviewed by our team and are never shown to the other person.",
+  "reportDetails": "Additional details (optional)",
+  "reportSent": "Thanks. Your report was sent.",
+  "reasonSpam": "Spam",
+  "reasonHarassment": "Harassment or bullying",
+  "reasonInappropriate": "Inappropriate content",
+  "reasonImpersonation": "Impersonation",
+  "reasonOther": "Something else",
+  "settings": "Settings",
+  "notifications": "Notifications",
+  "notificationsOn": "Message notifications",
+  "notifDeniedHelp": "Notifications are blocked in system settings.",
+  "showPreviews": "Show message previews",
+  "showPreviewsHelp": "Off by default. When off, notifications just say \"New message\".",
+  "appearance": "Appearance",
+  "theme": "Theme",
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "privacyAndSafety": "Privacy & safety",
+  "blockedUsers": "Blocked users",
+  "noBlockedTitle": "No blocked users",
+  "noBlockedBody": "People you block will appear here.",
+  "clearImageCache": "Clear image cache",
+  "cacheCleared": "Image cache cleared.",
+  "about": "About",
+  "privacyPolicy": "Privacy policy",
+  "terms": "Terms of service",
+  "communityGuidelines": "Community guidelines",
+  "support": "Support",
+  "account": "Account",
+  "editProfile": "Edit profile",
+  "mute1h": "Mute for 1 hour",
+  "mute8h": "Mute for 8 hours",
+  "mute1w": "Mute for 1 week",
+  "muteForever": "Mute until I unmute",
+  "deleteAccount": "Delete account",
+  "deleteWhatTitle": "What happens when you delete your account",
+  "deleteWhat1": "Your profile, username and settings are permanently deleted.",
+  "deleteWhat2": "Photos you uploaded and your notification tokens are deleted.",
+  "deleteWhat3": "Messages you sent are deleted from your conversations.",
+  "deleteWhat4": "The other person keeps their own messages; your name is replaced with \"Deleted account\".",
+  "deleteIrreversible": "This can't be undone.",
+  "deleteConfirmCheck": "I understand and want to delete my account",
+  "reauthExplain": "For your security, please confirm it's you before we delete your account.",
+  "confirmAndDelete": "Confirm and delete",
+  "errGeneric": "Something went wrong. Please try again.",
+  "errInvalidCredentials": "That email or password isn't right.",
+  "errEmailInUse": "An account with that email already exists.",
+  "errWeakPassword": "Use a password with at least 8 characters.",
+  "errInvalidEmail": "Enter a valid email address.",
+  "errUserDisabled": "This account has been disabled.",
+  "errTooManyRequests": "Too many attempts. Please wait a moment and try again.",
+  "errAccountExists": "This email already uses a different sign-in method. Sign in with that method first.",
+  "errSignInCancelled": "Sign-in was cancelled.",
+  "errReauthRequired": "Please sign in again to continue.",
+  "errEmailNotVerified": "Please verify your email first.",
+  "errNetwork": "No connection. Check your network and try again.",
+  "errPermission": "You don't have permission to do that.",
+  "errUsernameInvalid": "Use 3–20 letters, numbers or underscores.",
+  "errUsernameTaken": "That username is taken.",
+  "errDisplayNameInvalid": "Enter a display name (up to 50 characters).",
+  "errMessageEmpty": "Write a message first.",
+  "errMessageTooLong": "That message is too long.",
+  "errFileTooLarge": "That file is too large (max 10 MB).",
+  "errFileUnsupported": "That file type isn't supported. Use JPG, PNG, WebP or HEIC.",
+  "errSelfConversation": "You can't start a chat with yourself.",
+  "errUploadCancelled": "Upload cancelled.",
+  "errUploadFailed": "Upload failed. Please try again.",
+  "errUnknown": "Something unexpected happened. Reference: {id}",
+  "@errUnknown": {
+    "placeholders": {
+      "id": {
+        "type": "String"
+      }
+    }
+  },
+  "noPreview": "Tap to open the chat",
+  "readReceipts": "Read receipts",
+  "readReceiptsHelp": "If you turn this off, you won't send or see read receipts. Delivery ticks still work.",
+  "statusDelivered": "Delivered",
+  "statusRead": "Read",
+  "tapForInfo": "Tap here for contact info",
+  "chatPrivacyNote": "Messages are stored in the cloud and protected by access rules. They are not end-to-end encrypted.",
+  "contactInfo": "Contact info",
+  "sharedPhotos": "Shared photos",
+  "noSharedPhotos": "No photos shared yet.",
+  "bioEmpty": "No bio yet.",
+  "viewPhoto": "View photo",
+  "filterAll": "All",
+  "filterUnread": "Unread",
+  "filterPinned": "Pinned",
+  "chats": "Chats",
+  "photoPreview": "Photo",
+  "settingsSubtitle": "Account, privacy and appearance",
+  "featurePrivate": "Find people only by their exact username",
+  "featureCalm": "Calm notifications you control",
+  "featureNoFeed": "No feed. No strangers. Just your circle.",
+  "welcomeTagline": "Chat with your circle",
+  "noMessagesYet": "No messages yet",
+  "online": "online",
+  "lastSeenToday": "last seen today at {time}",
+  "lastSeenYesterday": "last seen yesterday at {time}",
+  "lastSeenOn": "last seen {date}",
+  "showLastSeen": "Last seen & online",
+  "showLastSeenHelp": "If you turn this off, others can't see when you were last online or when you're typing, and you can't see theirs.",
+  "messageDeleted": "This message was deleted",
+  "youDeletedMessage": "You deleted this message",
+  "selectedCount": "{count} selected",
+  "deleteMessagesTitle": "{count, plural, =1{Delete message?} other{Delete {count} messages?}}",
+  "deleteForEveryone": "Delete for everyone",
+  "deleteForMeOnly": "Delete for me",
+  "deleteForEveryoneHelp": "Removes the content for everyone in this chat. Only possible within 48 hours.",
+  "signOutTitle": "Sign out?",
+  "signOutBody": "Your messages stay safe in your account. You'll need to sign in again to read them.",
+  "deleteReasonTitle": "Why are you leaving?",
+  "deleteReasonHelp": "Optional. This is anonymous and helps us improve.",
+  "reasonAnotherAccount": "I have another account",
+  "reasonPrivacy": "Privacy concerns",
+  "reasonNotUsing": "I'm not using Hushlo",
+  "reasonNotifications": "Too many notifications",
+  "reasonBetterApp": "I found a better app",
+  "reasonOtherLeave": "Something else",
+  "deleteReasonDetails": "Tell us more (optional)",
+  "copyMessages": "Copy",
+  "cancelSelection": "Cancel selection",
+  "@lastSeenToday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@lastSeenYesterday": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@lastSeenOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "@selectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@deleteMessagesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "blockUser": "Block {name}",
+  "@blockUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "dangerZone": "Danger zone",
+  "goToOriginal": "Go to original message",
+  "removeReaction": "Remove reaction",
+  "typing": "typing…",
+  "clearChat": "Clear chat",
+  "clearChatTitle": "Clear this chat?",
+  "clearChatBody": "All messages will be removed from your view. {name} keeps their copy.",
+  "clearAction": "Clear",
+  "chatCleared": "Chat cleared",
+  "@clearChatBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
+}

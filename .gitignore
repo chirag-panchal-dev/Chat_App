@@ -1,0 +1,98 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ---- Hushlo additions ----
+# Node / Firebase
+node_modules/
+.firebase/
+firebase-debug.log
+*-debug.log
+ui-debug.log
+firestore-debug.log
+functions/lib/
+functions/*.local
+
+# Firebase client config: generated per developer/project by
+# `flutterfire configure`. Not secrets, but GitHub's secret scanner flags the
+# API keys, so they are kept out of git. See README -> Setup.
+/lib/firebase_options.dart
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+/firebase.json.local
+
+# Signing keys, push keys and credentials (NEVER commit)
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+key.properties
+android/key.properties
+service-account*.json
+*-adminsdk-*.json
+.env
+.env.*
+
+# Android / iOS build + local files
+/android/.gradle/
+/android/local.properties
+/android/captures/
+/android/gradlew.bat.bak
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/ephemeral/
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/flutter_export_environment.sh
+/ios/Runner/GeneratedPluginRegistrant.*
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# IDE backups
+.idea_backup_*/
+.vscode/*.log
+
+# Generated localizations are checked in (lib/l10n); local tool output is not
+/tmp/

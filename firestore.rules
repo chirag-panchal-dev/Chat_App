@@ -1,0 +1,378 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isTs(v) {
+      return v is timestamp;
+    }
+
+    function nullOrTs(d, k) {
+      return d.get(k, null) == null || d[k] is timestamp;
+    }
+
+    function nullOrBool(d, k) {
+      return d.get(k, null) == null || d[k] is bool;
+    }
+
+    function nullOrString(d, k, maxLen) {
+      return d.get(k, null) == null || (d[k] is string && d[k].size() <= maxLen);
+    }
+
+    function validUsername(u) {
+      return u is string && u.matches('^[a-z0-9_]{3,20}$');
+    }
+
+    function isBlocked(blocker, target) {
+      return exists(/databases/$(database)/documents/users/$(blocker)/blocks/$(target));
+    }
+
+    function convRef(cid) {
+      return /databases/$(database)/documents/conversations/$(cid);
+    }
+
+    function isMember(cid) {
+      return signedIn()
+          && exists(convRef(cid))
+          && request.auth.uid in get(convRef(cid)).data.memberIds;
+    }
+
+    // Membership as it will be after the current write batch commits.
+    function isMemberAfter(cid) {
+      return signedIn()
+          && existsAfter(convRef(cid))
+          && request.auth.uid in getAfter(convRef(cid)).data.memberIds;
+    }
+
+    // ---------- public profiles ----------
+    match /publicProfiles/{uid} {
+      function profileShape(d) {
+        return d.keys().hasOnly(['uid', 'username', 'usernameLower', 'displayName',
+                                 'photoPath', 'bio', 'createdAt', 'updatedAt'])
+            && d.keys().hasAll(['uid', 'username', 'usernameLower', 'displayName',
+                                'createdAt', 'updatedAt'])
+            && d.uid == uid
+            && validUsername(d.username)
+            && d.usernameLower == d.username.lower()
+            && d.usernameLower == d.username
+            && d.displayName is string && d.displayName.size() >= 1 && d.displayName.size() <= 50
+            && nullOrString(d, 'photoPath', 300)
+            && nullOrString(d, 'bio', 160)
+            && isTs(d.createdAt) && isTs(d.updatedAt)
+            // The username must be reserved in the same batch/transaction.
+            && existsAfter(/databases/$(database)/documents/usernameIndex/$(d.usernameLower))
+            && getAfter(/databases/$(database)/documents/usernameIndex/$(d.usernameLower)).data.uid == uid;
+      }
+
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if isOwner(uid) && profileShape(request.resource.data);
+      allow update: if isOwner(uid) && profileShape(request.resource.data)
+                    && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false; // account deletion is performed by Cloud Function
+    }
+
+    // ---------- username index ----------
+    match /usernameIndex/{usernameLower} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+                    && validUsername(usernameLower)
+                    && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+                    && request.resource.data.keys().hasAll(['uid', 'createdAt'])
+                    && request.resource.data.uid == request.auth.uid
+                    && isTs(request.resource.data.createdAt)
+                    && existsAfter(/databases/$(database)/documents/publicProfiles/$(request.auth.uid))
+                    && getAfter(/databases/$(database)/documents/publicProfiles/$(request.auth.uid)).data.usernameLower == usernameLower;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ---------- private user data ----------
+    match /users/{uid} {
+      match /private/settings {
+        function settingsShape(d) {
+          return d.keys().hasOnly(['notificationEnabled', 'showMessagePreview',
+                                   'readReceiptsEnabled', 'lastSeenVisibility',
+                                   'themeMode', 'updatedAt'])
+              && nullOrBool(d, 'notificationEnabled')
+              && nullOrBool(d, 'showMessagePreview')
+              && nullOrBool(d, 'readReceiptsEnabled')
+              && (d.get('lastSeenVisibility', null) == null
+                  || d.lastSeenVisibility in ['everyone', 'contacts_or_chat_members', 'nobody'])
+              && (d.get('themeMode', null) == null
+                  || d.themeMode in ['system', 'light', 'dark'])
+              && nullOrTs(d, 'updatedAt');
+        }
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && settingsShape(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // NOTE: "users/{uid}/private/devices/{deviceId}" is not a valid document
+      // path (odd segment count), so devices live in users/{uid}/devices/{deviceId}.
+      match /devices/{deviceId} {
+        function deviceShape(d) {
+          return d.keys().hasOnly(['token', 'platform', 'appVersion', 'lastSeenAt'])
+              && d.keys().hasAll(['token', 'platform', 'lastSeenAt'])
+              && d.token is string && d.token.size() > 0 && d.token.size() <= 4096
+              && d.platform in ['android', 'ios']
+              && nullOrString(d, 'appVersion', 50)
+              && isTs(d.lastSeenAt);
+        }
+        allow read: if isOwner(uid);
+        allow create, update: if isOwner(uid) && deviceShape(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      match /blocks/{blockedUid} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid)
+                      && blockedUid != uid
+                      && request.resource.data.keys().hasOnly(['blockedUid', 'createdAt'])
+                      && request.resource.data.keys().hasAll(['blockedUid', 'createdAt'])
+                      && request.resource.data.blockedUid == blockedUid
+                      && isTs(request.resource.data.createdAt);
+        allow update: if false;
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // ---------- conversations ----------
+    match /conversations/{cid} {
+      function convShape(d) {
+        return d.keys().hasOnly(['type', 'memberIds', 'createdBy', 'createdAt', 'updatedAt',
+                                 'lastMessageId', 'lastMessageAt', 'lastMessagePreview',
+                                 'lastSenderId'])
+            && d.keys().hasAll(['type', 'memberIds', 'createdBy', 'createdAt', 'updatedAt'])
+            && d.type == 'direct'
+            && d.memberIds is list && d.memberIds.size() == 2
+            && d.memberIds[0] is string && d.memberIds[1] is string
+            && d.memberIds[0] < d.memberIds[1]
+            && cid == d.memberIds[0] + '_' + d.memberIds[1]
+            && d.createdBy == request.auth.uid
+            && request.auth.uid in d.memberIds
+            && d.createdAt == request.time
+            && d.updatedAt == request.time
+            && d.get('lastMessageId', null) == null
+            && d.get('lastMessageAt', null) == null
+            && d.get('lastMessagePreview', null) == null
+            && d.get('lastSenderId', null) == null
+            && exists(/databases/$(database)/documents/publicProfiles/$(d.memberIds[0]))
+            && exists(/databases/$(database)/documents/publicProfiles/$(d.memberIds[1]))
+            && !isBlocked(d.memberIds[0], d.memberIds[1])
+            && !isBlocked(d.memberIds[1], d.memberIds[0]);
+      }
+
+      // Also serves `where memberIds array-contains uid` queries.
+      allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
+      allow create: if signedIn() && convShape(request.resource.data);
+      allow update, delete: if false; // summary fields: Cloud Functions only
+
+      match /members/{uid} {
+        function memberShape(d) {
+          return d.keys().hasOnly(['joinedAt', 'lastReadAt', 'mutedUntil', 'archived', 'pinned', 'clearedAt'])
+              && d.keys().hasAll(['joinedAt'])
+              && isTs(d.joinedAt)
+              && nullOrTs(d, 'lastReadAt')
+              && nullOrTs(d, 'mutedUntil')
+              && nullOrTs(d, 'clearedAt')
+              && nullOrBool(d, 'archived')
+              && nullOrBool(d, 'pinned');
+        }
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && isMemberAfter(cid) && memberShape(request.resource.data);
+        allow update: if isOwner(uid) && isMember(cid) && memberShape(request.resource.data)
+                      && request.resource.data.joinedAt == resource.data.joinedAt;
+        allow delete: if false;
+
+        match /hidden/{messageId} {
+          allow read: if isOwner(uid);
+          allow create: if isOwner(uid) && isMember(cid)
+                        && request.resource.data.keys().hasOnly(['hiddenAt'])
+                        && request.resource.data.keys().hasAll(['hiddenAt'])
+                        && isTs(request.resource.data.hiddenAt);
+          allow update: if false;
+          allow delete: if isOwner(uid);
+        }
+      }
+
+      // Delivery / read receipts. Each member writes only their own doc; the
+      // other member can read it to show ticks. Read receipts are only written
+      // by clients whose user has "read receipts" enabled.
+      match /receipts/{uid} {
+        function receiptShape(d) {
+          return d.keys().hasOnly(['lastDeliveredAt', 'lastReadAt'])
+              && d.keys().size() >= 1
+              && nullOrTs(d, 'lastDeliveredAt')
+              && nullOrTs(d, 'lastReadAt');
+        }
+        allow read: if isMember(cid);
+        allow create, update: if isOwner(uid) && isMember(cid) && receiptShape(request.resource.data);
+        allow delete: if false;
+      }
+
+      // Typing indicator: short-lived signal written by the typer (throttled
+      // client-side) and read by the other member. Stale docs are ignored by
+      // clients, so a crashed client never leaves "typing" stuck.
+      match /typing/{uid} {
+        allow read: if isMember(cid);
+        allow create, update: if isOwner(uid) && isMember(cid)
+                              && request.resource.data.keys().hasOnly(['typingAt'])
+                              && request.resource.data.typingAt == request.time;
+        allow delete: if isOwner(uid) && isMember(cid);
+      }
+
+      match /messages/{mid} {
+        function otherMember(conv, uid) {
+          return conv.memberIds[0] == uid ? conv.memberIds[1] : conv.memberIds[0];
+        }
+
+        function messageShape(d, cid) {
+          return d.keys().hasOnly(['clientMessageId', 'senderId', 'type', 'text', 'mediaPath',
+                                   'thumbnailPath', 'mimeType', 'sizeBytes', 'width', 'height',
+                                   'replyToMessageId', 'createdAt', 'editedAt',
+                                   'deletedForEveryoneAt'])
+              && d.keys().hasAll(['clientMessageId', 'senderId', 'type', 'createdAt'])
+              && d.clientMessageId == mid
+              && d.senderId == request.auth.uid
+              && d.createdAt == request.time
+              && d.get('editedAt', null) == null
+              && d.get('deletedForEveryoneAt', null) == null
+              && nullOrString(d, 'replyToMessageId', 128)
+              && (d.type == 'text' ? textMessage(d) : (d.type == 'image' && imageMessage(d, cid)));
+        }
+
+        function textMessage(d) {
+          return d.get('text', null) is string
+              && d.text.size() >= 1 && d.text.size() <= 4000
+              && d.text.matches('(?s).*\\S.*')
+              && d.get('mediaPath', null) == null
+              && d.get('thumbnailPath', null) == null
+              && d.get('mimeType', null) == null
+              && d.get('sizeBytes', null) == null
+              && d.get('width', null) == null
+              && d.get('height', null) == null;
+        }
+
+        function imageMessage(d, cid) {
+          return nullOrString(d, 'text', 1000)
+              && d.get('mediaPath', null) is string
+              && d.mediaPath.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+')
+              && (d.get('thumbnailPath', null) == null
+                  || (d.thumbnailPath is string
+                      && d.thumbnailPath.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+')))
+              && d.get('mimeType', null) in ['image/jpeg', 'image/png', 'image/webp']
+              && d.get('sizeBytes', null) is int
+              && d.sizeBytes > 0 && d.sizeBytes <= 10 * 1024 * 1024
+              && (d.get('width', null) == null || (d.width is int && d.width > 0))
+              && (d.get('height', null) == null || (d.height is int && d.height > 0));
+        }
+
+        function canSend(cid) {
+          let conv = get(convRef(cid)).data;
+          let other = otherMember(conv, request.auth.uid);
+          return request.auth.uid in conv.memberIds
+              && !isBlocked(other, request.auth.uid)
+              && !isBlocked(request.auth.uid, other);
+        }
+
+        allow read: if isMember(cid);
+        allow create: if signedIn() && exists(convRef(cid))
+                      && canSend(cid) && messageShape(request.resource.data, cid);
+        // Messages are immutable for clients, except that the sender can
+        // "delete for everyone" within 48h: content is wiped and a tombstone
+        // timestamp is set. Nothing else may change.
+        allow update: if signedIn() && isMember(cid)
+                      && resource.data.senderId == request.auth.uid
+                      && resource.data.get('deletedForEveryoneAt', null) == null
+                      && request.time < resource.data.createdAt + duration.value(48, 'h')
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['deletedForEveryoneAt', 'text', 'mediaPath', 'thumbnailPath',
+                                     'mimeType', 'sizeBytes', 'width', 'height'])
+                      && request.resource.data.deletedForEveryoneAt == request.time
+                      && request.resource.data.get('text', null) == null
+                      && request.resource.data.get('mediaPath', null) == null
+                      && request.resource.data.get('thumbnailPath', null) == null;
+        allow delete: if false;
+
+        match /reactions/{reactorUid} {
+          allow read: if isMember(cid);
+          allow create, update: if isOwner(reactorUid) && isMember(cid)
+                                && request.resource.data.keys().hasOnly(['emoji', 'createdAt'])
+                                && request.resource.data.keys().hasAll(['emoji', 'createdAt'])
+                                && request.resource.data.emoji in ['👍', '❤️', '😂', '😮', '😢', '🙏']
+                                && isTs(request.resource.data.createdAt);
+          allow delete: if isOwner(reactorUid) && isMember(cid);
+        }
+      }
+    }
+
+    // ---------- presence (online / last seen) ----------
+    // Owner writes `lastActiveAt`; people who share a conversation with the
+    // owner can read it. Users who hide their last seen delete the doc.
+    match /presence/{uid} {
+      function sharesConversation(a, b) {
+        return exists(/databases/$(database)/documents/conversations/$(a < b ? a + '_' + b : b + '_' + a));
+      }
+      allow read: if isOwner(uid) || (signedIn() && sharesConversation(request.auth.uid, uid));
+      allow create, update: if isOwner(uid)
+                            && request.resource.data.keys().hasOnly(['lastActiveAt'])
+                            && request.resource.data.lastActiveAt == request.time;
+      allow delete: if isOwner(uid);
+    }
+
+    // ---------- anonymous account-deletion feedback (write-only) ----------
+    match /deletionFeedback/{id} {
+      allow create: if signedIn()
+                    && request.resource.data.keys().hasOnly(['reason', 'details', 'createdAt'])
+                    && request.resource.data.keys().hasAll(['reason', 'createdAt'])
+                    && request.resource.data.reason in ['anotherAccount', 'privacy', 'notUsing',
+                                                        'notifications', 'betterApp', 'other']
+                    && nullOrString(request.resource.data, 'details', 500)
+                    && request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
+
+    // ---------- reports (write-only for clients) ----------
+    match /reports/{id} {
+      allow create: if signedIn()
+                    && request.resource.data.keys().hasOnly(['reporterId', 'reportedUid',
+                                                              'conversationId', 'messageId',
+                                                              'reason', 'details', 'createdAt', 'status'])
+                    && request.resource.data.keys().hasAll(['reporterId', 'reportedUid', 'reason',
+                                                             'createdAt', 'status'])
+                    && request.resource.data.reporterId == request.auth.uid
+                    && request.resource.data.reportedUid is string
+                    && request.resource.data.reportedUid.size() > 0
+                    && request.resource.data.reportedUid.size() <= 128
+                    && nullOrString(request.resource.data, 'conversationId', 200)
+                    && nullOrString(request.resource.data, 'messageId', 128)
+                    && request.resource.data.reason in ['spam', 'harassment', 'inappropriate',
+                                                        'impersonation', 'other']
+                    && nullOrString(request.resource.data, 'details', 500)
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.status == 'open';
+      allow read, update, delete: if false;
+    }
+
+    // Server-only (idempotency markers, cleanup cursor).
+    match /functionMarkers/{id} {
+      allow read, write: if false;
+    }
+
+    // Catch-all deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isImage() {
+      return request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+    }
+
+    // Avatars: any signed-in user may read; only the owner writes.
+    match /avatars/{uid}/{file} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+                            && request.auth.uid == uid
+                            && isImage()
+                            && request.resource.size < 5 * 1024 * 1024;
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Chat media: chatMedia/{conversationId}/{uploaderUid}/{fileId}
+    match /chatMedia/{cid}/{uploaderUid}/{fileId} {
+      function convPath() {
+        return /databases/(default)/documents/conversations/$(cid);
+      }
+      function isMember() {
+        return signedIn()
+            && firestore.exists(convPath())
+            && request.auth.uid in firestore.get(convPath()).data.memberIds;
+      }
+
+      allow read: if isMember();
+      allow create, update: if isMember()
+                            && request.auth.uid == uploaderUid
+                            && isImage()
+                            && request.resource.size < 10 * 1024 * 1024;
+      allow delete: if signedIn() && request.auth.uid == uploaderUid;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

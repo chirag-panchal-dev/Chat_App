@@ -1,0 +1,15 @@
+// TEMPLATE — copy to lib/firebase_options.dart, or (recommended) just run
+// `flutterfire configure`, which generates the real file for YOUR Firebase
+// project and overwrites this placeholder.
+//
+// Until the real file exists the app shows a "Firebase is not configured"
+// screen instead of crashing (see lib/bootstrap.dart).
+import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+
+class DefaultFirebaseOptions {
+  static FirebaseOptions get currentPlatform {
+    throw UnsupportedError(
+      'Firebase is not configured. Run `flutterfire configure`.',
+    );
+  }
+}
