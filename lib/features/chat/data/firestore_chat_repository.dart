@@ -5,8 +5,12 @@ import '../domain/entities/chat_message.dart';
 import '../domain/repositories/chat_repository.dart';
 
 class FirestoreChatRepository implements ChatRepository {
-  FirestoreChatRepository(this._db);
+  FirestoreChatRepository(this._db, {this.disappearAfter});
   final FirebaseFirestore _db;
+
+  /// The chat's disappearing-messages timer (null/zero = off); read when a
+  /// message is created so it can carry its own `expiresAt`.
+  final Duration? Function(String conversationId)? disappearAfter;
   final _pendingTimes = <String, DateTime>{};
 
   CollectionReference<Map<String, dynamic>> _messages(String cid) =>
@@ -29,6 +33,9 @@ class FirestoreChatRepository implements ChatRepository {
     final type = switch (typeName) {
       'text' => MessageType.text,
       'image' => MessageType.image,
+      'voice' => MessageType.voice,
+      'file' => MessageType.file,
+      'video' => MessageType.video,
       'system' => MessageType.system,
       _ => null,
     };
@@ -37,6 +44,7 @@ class FirestoreChatRepository implements ChatRepository {
       'removed' => GroupEvent.removed,
       'left' => GroupEvent.left,
       'renamed' => GroupEvent.renamed,
+      'timer' => GroupEvent.timer,
       _ => null,
     };
     if (type == MessageType.system && event == null) return null;
@@ -56,6 +64,25 @@ class FirestoreChatRepository implements ChatRepository {
       deleted: d['deletedForEveryoneAt'] != null,
       event: event,
       targetUid: d['targetUid'] as String?,
+      timerSec: (d['timerSec'] as num?)?.toInt(),
+      fileName: d['fileName'] as String?,
+      mimeType: d['mimeType'] as String?,
+      sizeBytes: (d['sizeBytes'] as num?)?.toInt(),
+      pageCount: (d['pageCount'] as num?)?.toInt(),
+      editedAt:
+          d['editedAt'] is Timestamp
+              ? (d['editedAt'] as Timestamp).toDate()
+              : null,
+      expiresAt:
+          d['expiresAt'] is Timestamp
+              ? (d['expiresAt'] as Timestamp).toDate()
+              : null,
+      durationMs: (d['durationMs'] as num?)?.toInt(),
+      waveform:
+          (d['waveform'] as List?)
+              ?.whereType<num>()
+              .map((e) => e.toInt())
+              .toList(),
     );
   }
 
@@ -94,11 +121,14 @@ class FirestoreChatRepository implements ChatRepository {
     Map<String, Object?> data,
   ) async {
     final ref = _messages(cid).doc(id);
+    final ttl = disappearAfter?.call(cid);
     try {
       await ref.set({
         'clientMessageId': id,
         'senderId': senderId,
         ...data,
+        if (ttl != null && ttl > Duration.zero)
+          'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
         'createdAt': FieldValue.serverTimestamp(),
         'editedAt': null,
         'deletedForEveryoneAt': null,
@@ -157,6 +187,18 @@ class FirestoreChatRepository implements ChatRepository {
   });
 
   @override
+  Future<void> editMessage(String cid, String mid, String text) async {
+    try {
+      await _messages(cid).doc(mid).update({
+        'text': text,
+        'editedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Failure.from(e);
+    }
+  }
+
+  @override
   Future<void> deleteForEveryone(String cid, String mid) async {
     try {
       // Content is wiped (orphaned media is later removed by the cleanup job).
@@ -169,11 +211,84 @@ class FirestoreChatRepository implements ChatRepository {
         'sizeBytes': FieldValue.delete(),
         'width': FieldValue.delete(),
         'height': FieldValue.delete(),
+        'durationMs': FieldValue.delete(),
+        'waveform': FieldValue.delete(),
+        'fileName': FieldValue.delete(),
+        'pageCount': FieldValue.delete(),
       });
     } catch (e) {
       throw Failure.from(e);
     }
   }
+
+  @override
+  Future<void> sendVoice({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required int durationMs,
+    required List<int> waveform,
+    String? replyToId,
+  }) => _create(conversationId, messageId, senderId, {
+    'type': 'voice',
+    'mediaPath': mediaPath,
+    'mimeType': mimeType,
+    'sizeBytes': sizeBytes,
+    'durationMs': durationMs,
+    'waveform': waveform,
+    'replyToMessageId': replyToId,
+  });
+
+  @override
+  Future<void> sendFile({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required String fileName,
+    String? thumbnailPath,
+    int? pageCount,
+    String? replyToId,
+  }) => _create(conversationId, messageId, senderId, {
+    'type': 'file',
+    'mediaPath': mediaPath,
+    'mimeType': mimeType,
+    'sizeBytes': sizeBytes,
+    'fileName': fileName,
+    if (thumbnailPath != null) 'thumbnailPath': thumbnailPath,
+    if (pageCount != null && pageCount > 0) 'pageCount': pageCount,
+    'replyToMessageId': replyToId,
+  });
+
+  @override
+  Future<void> sendVideo({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required int durationMs,
+    int? width,
+    int? height,
+    String? thumbnailPath,
+    String? replyToId,
+  }) => _create(conversationId, messageId, senderId, {
+    'type': 'video',
+    'mediaPath': mediaPath,
+    'mimeType': mimeType,
+    'sizeBytes': sizeBytes,
+    'durationMs': durationMs,
+    if (width != null && width > 0) 'width': width,
+    if (height != null && height > 0) 'height': height,
+    if (thumbnailPath != null) 'thumbnailPath': thumbnailPath,
+    'replyToMessageId': replyToId,
+  });
 
   @override
   Stream<Set<String>> watchHidden(String cid, String uid) => _db

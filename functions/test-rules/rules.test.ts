@@ -298,7 +298,7 @@ describe("storage", () => {
     await seedConv();
     const p = `chatMedia/${CID}/${A}/f1`;
     await assertSucceeds(uploadBytes(ref(stOf(A), p), bytes(100), { contentType: "image/jpeg" }));
-    await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/f2`), bytes(100), { contentType: "application/pdf" }));
+    await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/f2`), bytes(100), { contentType: "application/x-msdownload" }));
     await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/f3`), bytes(11 * 1024 * 1024), { contentType: "image/png" }));
     await assertFails(uploadBytes(ref(stOf(C), `chatMedia/${CID}/${C}/f4`), bytes(100), { contentType: "image/jpeg" }));
     await assertFails(uploadBytes(ref(stOf(B), `chatMedia/${CID}/${A}/f5`), bytes(100), { contentType: "image/jpeg" }));
@@ -874,5 +874,421 @@ describe("groups", () => {
       await assertSucceeds(getBytes(ref(stOf(C), m)));
       await assertFails(getBytes(ref(stOf(D), m)));
     });
+  });
+});
+
+describe("voice messages", () => {
+  const vm = (over: Record<string, unknown> = {}) => ({
+    clientMessageId: MID, senderId: A, type: "voice", createdAt: serverTimestamp(),
+    mediaPath: `chatMedia/${CID}/${A}/${MID}.m4a`, mimeType: "audio/mp4", sizeBytes: 50_000,
+    durationMs: 12_000, waveform: Array.from({ length: 40 }, (_, i) => (i * 7) % 100),
+    editedAt: null, deletedForEveryoneAt: null, replyToMessageId: null, ...over,
+  });
+  it("valid voice message succeeds", async () => {
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath()), vm()));
+  });
+  it("must live in the sender's own media folder", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ mediaPath: `chatMedia/${CID}/${B}/x.m4a` })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ mediaPath: `chatMedia/other_conv/${A}/x.m4a` })));
+  });
+  it("mime type must be audio", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ mimeType: "image/jpeg" })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ mimeType: "application/pdf" })));
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath("a")), vm({ clientMessageId: "a", mimeType: "audio/aac" })));
+  });
+  it("duration must be 0.5s..5min", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ durationMs: 100 })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ durationMs: 5 * 60 * 1000 + 1 })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ durationMs: "12" })));
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath("b")), vm({ clientMessageId: "b", durationMs: 5 * 60 * 1000 })));
+  });
+  it("size, waveform and required fields are validated", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ sizeBytes: 11 * 1024 * 1024 })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ waveform: [] })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ waveform: Array(65).fill(10) })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ waveform: "loud" })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ mediaPath: null })));
+  });
+  it("cannot carry text, thumbnails or image dimensions; no forging", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ text: "hi" })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ thumbnailPath: `chatMedia/${CID}/${A}/t.jpg` })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ width: 10, height: 10 })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm({ senderId: B })));
+    await assertFails(setDoc(doc(dbOf(C), sendPath()), vm({ senderId: C, mediaPath: `chatMedia/${CID}/${C}/x.m4a` })));
+  });
+  it("text and image messages cannot smuggle voice fields", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), textMsg({ durationMs: 1000 })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("w")), textMsg({ clientMessageId: "w", waveform: [1, 2] })));
+  });
+  it("blocked users cannot send voice either", async () => {
+    await block(B, A);
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), vm()));
+  });
+  it("sender can delete a voice message for everyone (content wiped)", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), sendPath("v1")), { ...vm({ clientMessageId: "v1", createdAt: Timestamp.now() }) });
+    });
+    await assertSucceeds(updateDoc(doc(dbOf(A), sendPath("v1")), {
+      deletedForEveryoneAt: serverTimestamp(), mediaPath: deleteField(), mimeType: deleteField(),
+      sizeBytes: deleteField(), durationMs: deleteField(), waveform: deleteField(),
+    }));
+    await assertFails(updateDoc(doc(dbOf(B), sendPath("v1")), { deletedForEveryoneAt: serverTimestamp(), mediaPath: deleteField() }));
+  });
+
+  describe("storage", () => {
+    const bytes = (n: number) => new Uint8Array(n);
+    it("member can upload audio to their own folder", async () => {
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/v1.m4a`), bytes(1000), { contentType: "audio/mp4" }));
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/v2.m4a`), bytes(1000), { contentType: "audio/aac" }));
+    });
+    it("non-members, other folders, other types and oversize are denied", async () => {
+      await assertFails(uploadBytes(ref(stOf(C), `chatMedia/${CID}/${C}/v.m4a`), bytes(1000), { contentType: "audio/mp4" }));
+      await assertFails(uploadBytes(ref(stOf(B), `chatMedia/${CID}/${A}/v.m4a`), bytes(1000), { contentType: "audio/mp4" }));
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/v.exe`), bytes(1000), { contentType: "application/x-msdownload" }));
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/big.m4a`), bytes(11 * 1024 * 1024), { contentType: "audio/mp4" }));
+    });
+    it("audio is not allowed as an avatar; only members can read it", async () => {
+      await assertFails(uploadBytes(ref(stOf(A), `avatars/${A}/v.m4a`), bytes(1000), { contentType: "audio/mp4" }));
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/v3.m4a`), bytes(1000), { contentType: "audio/mp4" }));
+      await assertSucceeds(getBytes(ref(stOf(B), `chatMedia/${CID}/${A}/v3.m4a`)));
+      await assertFails(getBytes(ref(stOf(C), `chatMedia/${CID}/${A}/v3.m4a`)));
+    });
+  });
+});
+
+describe("disappearing messages", () => {
+  const convPath = `conversations/${CID}`;
+  const inHours = (h: number) => Timestamp.fromMillis(Date.now() + h * 3600_000);
+
+  async function setTimer(sec: number) {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), convPath), { disappearAfterSec: sec });
+    });
+  }
+
+  it("either member of a direct chat can set the timer; outsiders cannot", async () => {
+    await assertSucceeds(updateDoc(doc(dbOf(A), convPath), { disappearAfterSec: 86400 }));
+    await assertSucceeds(updateDoc(doc(dbOf(B), convPath), { disappearAfterSec: 0 }));
+    await assertFails(updateDoc(doc(dbOf(C), convPath), { disappearAfterSec: 86400 }));
+  });
+
+  it("only allowed values, only that field", async () => {
+    await assertFails(updateDoc(doc(dbOf(A), convPath), { disappearAfterSec: 60 }));
+    await assertFails(updateDoc(doc(dbOf(A), convPath), { disappearAfterSec: "86400" }));
+    await assertFails(updateDoc(doc(dbOf(A), convPath), { disappearAfterSec: 86400, lastMessagePreview: "x" }));
+    await assertFails(updateDoc(doc(dbOf(A), convPath), { memberIds: [A, C] }));
+  });
+
+  it("timer change + notice in one batch succeeds; notice without the change fails", async () => {
+    const db = dbOf(A);
+    const batch = writeBatch(db);
+    batch.update(doc(db, convPath), { disappearAfterSec: 604800 });
+    batch.set(doc(db, sendPath("n1")), textMsg({ clientMessageId: "n1", type: "system", event: "timer", timerSec: 604800, text: null }));
+    await assertSucceeds(batch.commit());
+
+    const lone = dbOf(B);
+    await assertFails(setDoc(doc(lone, sendPath("n2")), textMsg({ clientMessageId: "n2", senderId: B, type: "system", event: "timer", timerSec: 86400, text: null })));
+  });
+
+  it("with no timer, expiresAt is not allowed", async () => {
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath("m1")), textMsg({ clientMessageId: "m1" })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("m2")), textMsg({ clientMessageId: "m2", expiresAt: inHours(1) })));
+  });
+
+  it("with a timer, expiresAt is required, in the future and within the timer", async () => {
+    await setTimer(86400);
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath("m1")), textMsg({ clientMessageId: "m1", expiresAt: inHours(24) })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("m2")), textMsg({ clientMessageId: "m2" })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("m3")), textMsg({ clientMessageId: "m3", expiresAt: inHours(-1) })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("m4")), textMsg({ clientMessageId: "m4", expiresAt: inHours(48) })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("m5")), textMsg({ clientMessageId: "m5", expiresAt: "tomorrow" })));
+  });
+
+  it("expiresAt cannot be changed afterwards", async () => {
+    await setTimer(86400);
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath("m1")), textMsg({ clientMessageId: "m1", expiresAt: inHours(24) })));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("m1")), { expiresAt: inHours(900) }));
+  });
+
+  it("group: only admins set the timer", async () => {
+    const gid = "g_" + "a".repeat(32);
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `publicProfiles/dave`), { uid: "dave", username: "dave", usernameLower: "dave", displayName: "dave", createdAt: Timestamp.now(), updatedAt: Timestamp.now() });
+      await setDoc(doc(ctx.firestore(), `conversations/${gid}`), {
+        type: "group", memberIds: [A, B, C], adminIds: [A], name: "G", createdBy: A,
+        createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+      });
+    });
+    await assertFails(updateDoc(doc(dbOf(B), `conversations/${gid}`), { disappearAfterSec: 86400 }));
+    await assertSucceeds(updateDoc(doc(dbOf(A), `conversations/${gid}`), { disappearAfterSec: 86400 }));
+  });
+});
+
+describe("edit message", () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, sendPath("fresh")), textMsg({ clientMessageId: "fresh", createdAt: Timestamp.now() }));
+      await setDoc(doc(db, sendPath("stale")), textMsg({ clientMessageId: "stale", createdAt: Timestamp.fromMillis(Date.now() - 20 * 60 * 1000) }));
+      await setDoc(doc(db, sendPath("pic")), textMsg({ clientMessageId: "pic", type: "image", text: null, mediaPath: `chatMedia/${CID}/${A}/p.jpg`, mimeType: "image/jpeg", sizeBytes: 5, createdAt: Timestamp.now() }));
+    });
+  });
+  const edit = (t: string, extra: Record<string, unknown> = {}) => ({ text: t, editedAt: serverTimestamp(), ...extra });
+
+  it("sender can edit a recent text message", async () => {
+    await assertSucceeds(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("fixed")));
+    await assertSucceeds(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("fixed again")));
+  });
+  it("others and non-members cannot edit", async () => {
+    await assertFails(updateDoc(doc(dbOf(B), sendPath("fresh")), edit("hacked")));
+    await assertFails(updateDoc(doc(dbOf(C), sendPath("fresh")), edit("hacked")));
+  });
+  it("too old (>15 min) cannot be edited", async () => {
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("stale")), edit("late")));
+  });
+  it("editedAt must be server time; text must be valid", async () => {
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), { text: "x", editedAt: Timestamp.fromMillis(5) }));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), { text: "x" }));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("   ")));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("")));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("a".repeat(4001))));
+  });
+  it("cannot change other fields, and photos cannot be edited", async () => {
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("x", { senderId: B })));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("x", { createdAt: Timestamp.now() })));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("pic")), edit("caption")));
+  });
+  it("a deleted message cannot be edited", async () => {
+    await assertSucceeds(updateDoc(doc(dbOf(A), sendPath("fresh")), { deletedForEveryoneAt: serverTimestamp(), text: deleteField() }));
+    await assertFails(updateDoc(doc(dbOf(A), sendPath("fresh")), edit("revive")));
+  });
+});
+
+describe("quiet hours settings", () => {
+  const path = `users/${A}/private/settings`;
+  const ok = { quietHoursEnabled: true, quietStartMin: 1320, quietEndMin: 420, utcOffsetMin: 330, updatedAt: serverTimestamp() };
+  it("owner can save a valid window", async () => {
+    await assertSucceeds(setDoc(doc(dbOf(A), path), ok));
+    await assertSucceeds(setDoc(doc(dbOf(A), path), { utcOffsetMin: -300, updatedAt: serverTimestamp() }, { merge: true }));
+  });
+  it("others cannot write it", async () => {
+    await assertFails(setDoc(doc(dbOf(B), path), ok));
+  });
+  it("rejects out-of-range or wrong-typed values", async () => {
+    await assertFails(setDoc(doc(dbOf(A), path), { ...ok, quietStartMin: 1440 }));
+    await assertFails(setDoc(doc(dbOf(A), path), { ...ok, quietEndMin: -1 }));
+    await assertFails(setDoc(doc(dbOf(A), path), { ...ok, quietStartMin: "22:00" }));
+    await assertFails(setDoc(doc(dbOf(A), path), { ...ok, utcOffsetMin: 900 }));
+    await assertFails(setDoc(doc(dbOf(A), path), { ...ok, quietHoursEnabled: "yes" }));
+    await assertFails(setDoc(doc(dbOf(A), path), { ...ok, extra: 1 }));
+  });
+});
+
+describe("saved messages", () => {
+  const p = (u: string, id = "n1") => `users/${u}/saved/${id}`;
+  const note = (over: Record<string, unknown> = {}) => ({ text: "remember this", createdAt: serverTimestamp(), ...over });
+
+  it("owner can add, read and delete; nobody else can touch them", async () => {
+    await assertSucceeds(setDoc(doc(dbOf(A), p(A)), note()));
+    await assertSucceeds(getDoc(doc(dbOf(A), p(A))));
+    await assertSucceeds(getDocs(query(collection(dbOf(A), `users/${A}/saved`))));
+    await assertFails(getDoc(doc(dbOf(B), p(A))));
+    await assertFails(setDoc(doc(dbOf(B), p(A, "n2")), note()));
+    await assertFails(deleteDoc(doc(dbOf(B), p(A))));
+    await assertSucceeds(deleteDoc(doc(dbOf(A), p(A))));
+  });
+  it("can record where a copied message came from", async () => {
+    await assertSucceeds(setDoc(doc(dbOf(A), p(A)), note({ sourceName: "Bob" })));
+    await assertFails(setDoc(doc(dbOf(A), p(A, "n2")), note({ sourceName: "x".repeat(101) })));
+  });
+  it("validates text, server time and fields; notes are immutable", async () => {
+    await assertFails(setDoc(doc(dbOf(A), p(A)), note({ text: "   " })));
+    await assertFails(setDoc(doc(dbOf(A), p(A)), note({ text: "" })));
+    await assertFails(setDoc(doc(dbOf(A), p(A)), note({ text: "a".repeat(4001) })));
+    await assertFails(setDoc(doc(dbOf(A), p(A)), note({ createdAt: Timestamp.fromMillis(5) })));
+    await assertFails(setDoc(doc(dbOf(A), p(A)), note({ extra: 1 })));
+    await assertSucceeds(setDoc(doc(dbOf(A), p(A)), note()));
+    await assertFails(updateDoc(doc(dbOf(A), p(A)), { text: "changed" }));
+  });
+  it("signed-out users are denied", async () => {
+    await assertFails(getDocs(collection(dbOf(null), `users/${A}/saved`)));
+  });
+});
+
+describe("documents and videos", () => {
+  const fm = (over: Record<string, unknown> = {}) => ({
+    clientMessageId: MID, senderId: A, type: "file", createdAt: serverTimestamp(),
+    mediaPath: `chatMedia/${CID}/${A}/${MID}.pdf`, mimeType: "application/pdf", sizeBytes: 200_000,
+    fileName: "report.pdf", editedAt: null, deletedForEveryoneAt: null, replyToMessageId: null, ...over,
+  });
+  const vid = (over: Record<string, unknown> = {}) => ({
+    clientMessageId: MID, senderId: A, type: "video", createdAt: serverTimestamp(),
+    mediaPath: `chatMedia/${CID}/${A}/${MID}.mp4`, mimeType: "video/mp4", sizeBytes: 5_000_000,
+    durationMs: 30_000, width: 1080, height: 1920,
+    editedAt: null, deletedForEveryoneAt: null, replyToMessageId: null, ...over,
+  });
+
+  describe("file messages", () => {
+    it("valid document succeeds", async () => {
+      await assertSucceeds(setDoc(doc(dbOf(A), sendPath()), fm()));
+      await assertSucceeds(setDoc(doc(dbOf(A), sendPath("d")), fm({ clientMessageId: "d", mimeType: "text/csv", fileName: "a.csv", mediaPath: `chatMedia/${CID}/${A}/d.csv` })));
+    });
+    it("only allowlisted types", async () => {
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ mimeType: "application/x-msdownload" })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ mimeType: "application/vnd.android.package-archive" })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ mimeType: "text/html" })));
+    });
+    it("size, name and path are validated", async () => {
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ sizeBytes: 26 * 1024 * 1024 })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ sizeBytes: 0 })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ fileName: "" })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ fileName: "a".repeat(201) })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ fileName: null })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ mediaPath: `chatMedia/${CID}/${B}/x.pdf` })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ senderId: B })));
+    });
+    it("no text, thumbnail, dimensions or voice fields", async () => {
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ text: "hi" })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ width: 1, height: 1 })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm({ durationMs: 1000 })));
+    });
+    it("fileName is only for file messages", async () => {
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), textMsg({ fileName: "x.pdf" })));
+    });
+    it("blocked users cannot send files", async () => {
+      await block(B, A);
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), fm()));
+    });
+    it("sender can delete a file for everyone", async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), sendPath("f1")), fm({ clientMessageId: "f1", createdAt: Timestamp.now() }));
+      });
+      await assertSucceeds(updateDoc(doc(dbOf(A), sendPath("f1")), {
+        deletedForEveryoneAt: serverTimestamp(), mediaPath: deleteField(), mimeType: deleteField(),
+        sizeBytes: deleteField(), fileName: deleteField(),
+      }));
+    });
+  });
+
+  describe("video messages", () => {
+    it("valid video succeeds (QuickTime too)", async () => {
+      await assertSucceeds(setDoc(doc(dbOf(A), sendPath()), vid()));
+      await assertSucceeds(setDoc(doc(dbOf(A), sendPath("q")), vid({ clientMessageId: "q", mimeType: "video/quicktime", mediaPath: `chatMedia/${CID}/${A}/q.mov` })));
+    });
+    it("type, size and duration limits", async () => {
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ mimeType: "video/x-msvideo" })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ sizeBytes: 51 * 1024 * 1024 })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ durationMs: 100 })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ durationMs: 10 * 60 * 1000 + 1 })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ durationMs: null })));
+      await assertSucceeds(setDoc(doc(dbOf(A), sendPath("ok")), vid({ clientMessageId: "ok", sizeBytes: 50 * 1024 * 1024 })));
+    });
+    it("no fileName/text/thumbnail/waveform; own folder only", async () => {
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ fileName: "x.mp4" })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ text: "hi" })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ waveform: [1] })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ mediaPath: `chatMedia/${CID}/${B}/x.mp4` })));
+      await assertFails(setDoc(doc(dbOf(A), sendPath()), vid({ width: 0 })));
+    });
+  });
+
+  describe("storage", () => {
+    const bytes = (n: number) => new Uint8Array(n);
+    it("documents up to 25 MB, videos up to 50 MB, own folder, members only", async () => {
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/d1.pdf`), bytes(1000), { contentType: "application/pdf" }));
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/d2.docx`), bytes(1000), { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }));
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/v1.mp4`), bytes(1000), { contentType: "video/mp4" }));
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/d3.pdf`), bytes(24 * 1024 * 1024), { contentType: "application/pdf" }));
+      await assertSucceeds(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/v2.mp4`), bytes(49 * 1024 * 1024), { contentType: "video/mp4" }));
+    });
+    it("rejects oversize, other types, other folders and non-members", async () => {
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/d4.pdf`), bytes(26 * 1024 * 1024), { contentType: "application/pdf" }));
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/v3.mp4`), bytes(51 * 1024 * 1024), { contentType: "video/mp4" }));
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/x.apk`), bytes(1000), { contentType: "application/vnd.android.package-archive" }));
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/x.html`), bytes(1000), { contentType: "text/html" }));
+      await assertFails(uploadBytes(ref(stOf(B), `chatMedia/${CID}/${A}/d.pdf`), bytes(1000), { contentType: "application/pdf" }));
+      await assertFails(uploadBytes(ref(stOf(C), `chatMedia/${CID}/${C}/d.pdf`), bytes(1000), { contentType: "application/pdf" }));
+    });
+    it("images and voice keep their 10 MB cap", async () => {
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/big.jpg`), bytes(11 * 1024 * 1024), { contentType: "image/jpeg" }));
+      await assertFails(uploadBytes(ref(stOf(A), `chatMedia/${CID}/${A}/big.m4a`), bytes(11 * 1024 * 1024), { contentType: "audio/mp4" }));
+    });
+  });
+});
+
+describe("previews: pdf pages and video thumbnails", () => {
+  const pdf = (over: Record<string, unknown> = {}) => ({
+    clientMessageId: MID, senderId: A, type: "file", createdAt: serverTimestamp(),
+    mediaPath: `chatMedia/${CID}/${A}/${MID}.pdf`, mimeType: "application/pdf", sizeBytes: 200_000,
+    fileName: "report.pdf", thumbnailPath: `chatMedia/${CID}/${A}/${MID}_thumb.jpg`, pageCount: 12,
+    editedAt: null, deletedForEveryoneAt: null, replyToMessageId: null, ...over,
+  });
+  const vid = (over: Record<string, unknown> = {}) => ({
+    clientMessageId: MID, senderId: A, type: "video", createdAt: serverTimestamp(),
+    mediaPath: `chatMedia/${CID}/${A}/${MID}.mp4`, mimeType: "video/mp4", sizeBytes: 5_000_000,
+    durationMs: 30_000, width: 1080, height: 1920,
+    thumbnailPath: `chatMedia/${CID}/${A}/${MID}_thumb.jpg`,
+    editedAt: null, deletedForEveryoneAt: null, replyToMessageId: null, ...over,
+  });
+
+  it("a PDF may carry a first-page preview and a page count", async () => {
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath()), pdf()));
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath("n")), pdf({ clientMessageId: "n", thumbnailPath: null, pageCount: null })));
+  });
+  it("preview must live in the sender's folder; page count must be sane", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf({ thumbnailPath: `chatMedia/${CID}/${B}/t.jpg` })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf({ thumbnailPath: `chatMedia/other/${A}/t.jpg` })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf({ pageCount: 0 })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf({ pageCount: 100001 })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf({ pageCount: "12" })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf({ pageCount: 1.5 })));
+  });
+  it("only PDFs may have a preview or page count (not other documents)", async () => {
+    const docx = { mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", fileName: "a.docx", mediaPath: `chatMedia/${CID}/${A}/${MID}.docx` };
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf(docx)));
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), pdf({ ...docx, thumbnailPath: null })));
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath("ok")), pdf({ ...docx, clientMessageId: "ok", thumbnailPath: null, pageCount: null })));
+  });
+  it("pageCount is only for file messages", async () => {
+    await assertFails(setDoc(doc(dbOf(A), sendPath()), textMsg({ pageCount: 3 })));
+  });
+  it("a video may carry a thumbnail in the sender's folder", async () => {
+    await assertSucceeds(setDoc(doc(dbOf(A), sendPath()), vid()));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("x")), vid({ clientMessageId: "x", thumbnailPath: `chatMedia/${CID}/${B}/t.jpg` })));
+    await assertFails(setDoc(doc(dbOf(A), sendPath("y")), vid({ clientMessageId: "y", thumbnailPath: 5 })));
+  });
+  it("deleting for everyone wipes the preview too", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), sendPath("p1")), pdf({ clientMessageId: "p1", createdAt: Timestamp.now() }));
+    });
+    await assertSucceeds(updateDoc(doc(dbOf(A), sendPath("p1")), {
+      deletedForEveryoneAt: serverTimestamp(), mediaPath: deleteField(), thumbnailPath: deleteField(),
+      mimeType: deleteField(), sizeBytes: deleteField(), fileName: deleteField(), pageCount: deleteField(),
+    }));
+  });
+});
+
+describe("per-chat theme", () => {
+  const mp = `conversations/${CID}/members/${A}`;
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), mp), { joinedAt: Timestamp.now() });
+      await setDoc(doc(ctx.firestore(), `conversations/${CID}/members/${B}`), { joinedAt: Timestamp.now() });
+    });
+  });
+  it("the owner can pick and clear a theme", async () => {
+    for (const id of ["ocean", "violet", "rose", "sunset", "forest", "graphite"]) {
+      await assertSucceeds(updateDoc(doc(dbOf(A), mp), { chatTheme: id }));
+    }
+    await assertSucceeds(updateDoc(doc(dbOf(A), mp), { chatTheme: deleteField() }));
+  });
+  it("only known themes", async () => {
+    await assertFails(updateDoc(doc(dbOf(A), mp), { chatTheme: "neon" }));
+    await assertFails(updateDoc(doc(dbOf(A), mp), { chatTheme: "" }));
+    await assertFails(updateDoc(doc(dbOf(A), mp), { chatTheme: 5 }));
+  });
+  it("others cannot set or read it", async () => {
+    await assertFails(updateDoc(doc(dbOf(B), mp), { chatTheme: "ocean" }));
+    await assertFails(getDoc(doc(dbOf(B), mp)));
   });
 });

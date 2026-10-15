@@ -13,6 +13,8 @@ import '../../../../core/widgets/user_avatar.dart';
 import '../../../auth/presentation/viewmodels/auth_providers.dart';
 import '../../../conversations/domain/entities/conversation.dart';
 import '../../../conversations/presentation/viewmodels/conversation_providers.dart';
+import '../../../chat_theme/presentation/chat_theme_tile.dart';
+import '../../../conversations/presentation/widgets/disappearing_tile.dart';
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
 import '../../../safety/presentation/viewmodels/safety_providers.dart';
 import '../../../safety/presentation/widgets/report_dialog.dart';
@@ -293,6 +295,24 @@ class ContactInfoScreen extends ConsumerWidget {
                                         fullPath: photos[i].mediaPath!,
                                       ),
                                 ),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Column(
+                          children: [
+                            ChatThemeTile(
+                              conversationId: conversationId,
+                              me: me,
+                            ),
+                            if (otherUid.isNotEmpty) ...[
+                              const Divider(height: 1),
+                              DisappearingTile(
+                                conversationId: conversationId,
+                                me: me,
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Card(

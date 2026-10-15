@@ -20,3 +20,20 @@ final settingsProvider = StreamProvider<PrivacySettings>((ref) {
 final themeModeProvider = Provider<ThemeMode>(
   (ref) => ref.watch(settingsProvider).value?.themeMode ?? ThemeMode.system,
 );
+
+/// While quiet hours are on, writes the phone's current UTC offset once per
+/// app start (travel, daylight saving) so the server's idea of the user's
+/// local time stays right. Watched from the app root.
+final quietOffsetSyncProvider = Provider<void>((ref) {
+  final uid = ref.watch(currentUidProvider);
+  var done = false;
+  ref.listen(settingsProvider, (_, next) {
+    final s = next.value;
+    if (done || uid == null || s == null || !s.quietHours.enabled) return;
+    done = true;
+    ref
+        .read(settingsRepositoryProvider)
+        .syncUtcOffset(uid, DateTime.now().timeZoneOffset.inMinutes)
+        .catchError((Object _) {});
+  }, fireImmediately: true);
+});

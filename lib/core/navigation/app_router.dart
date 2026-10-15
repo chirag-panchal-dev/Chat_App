@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/files/presentation/screens/video_viewer_screen.dart';
+import '../../features/saved/presentation/screens/saved_messages_screen.dart';
 import '../../features/account_deletion/presentation/delete_account_screen.dart';
 import '../../features/attachments/presentation/screens/attachment_preview_screen.dart';
 import '../../features/attachments/presentation/screens/image_viewer_screen.dart';
@@ -97,6 +99,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/verify', builder: (_, __) => const VerifyEmailScreen()),
       GoRoute(path: '/setup', builder: (_, __) => const ProfileSetupScreen()),
       GoRoute(path: '/chats', builder: (_, __) => const ChatsScreen()),
+      GoRoute(path: '/saved', builder: (_, __) => const SavedMessagesScreen()),
       GoRoute(path: '/new-chat', builder: (_, __) => const NewChatScreen()),
       GoRoute(path: '/new-group', builder: (_, __) => const NewGroupScreen()),
       GoRoute(path: '/join-group', builder: (_, __) => const JoinGroupScreen()),
@@ -140,6 +143,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           ),
         ],
+      ),
+      GoRoute(
+        path: '/video',
+        builder: (_, s) {
+          final extra = s.extra as Map<String, Object?>;
+          return VideoViewerScreen(path: extra['path']! as String);
+        },
       ),
       GoRoute(
         path: '/image',

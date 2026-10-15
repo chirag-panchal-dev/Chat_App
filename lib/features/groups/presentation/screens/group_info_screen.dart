@@ -16,6 +16,8 @@ import '../../../attachments/presentation/viewmodels/attachment_providers.dart';
 import '../../../auth/presentation/viewmodels/auth_providers.dart';
 import '../../../conversations/domain/entities/conversation.dart';
 import '../../../conversations/presentation/viewmodels/conversation_providers.dart';
+import '../../../chat_theme/presentation/chat_theme_tile.dart';
+import '../../../conversations/presentation/widgets/disappearing_tile.dart';
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
 import '../../domain/group_rules.dart';
 import '../viewmodels/group_providers.dart';
@@ -468,6 +470,20 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                               ),
                           onRemove: (n) => _confirmRemove(uid, n, me),
                         ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Card(
+                  child: Column(
+                    children: [
+                      ChatThemeTile(conversationId: _gid, me: me),
+                      const Divider(height: 1),
+                      DisappearingTile(
+                        conversationId: _gid,
+                        me: me,
+                        canChange: isAdmin,
+                      ),
                     ],
                   ),
                 ),

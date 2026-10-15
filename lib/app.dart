@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/navigation/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/app_lock/presentation/app_lock_gate.dart';
 import 'features/chat/presentation/viewmodels/delivery_receipts_controller.dart';
 import 'features/notifications/presentation/push_controller.dart';
 import 'features/presence/presentation/presence_controller.dart';
@@ -19,6 +20,7 @@ class HushloApp extends ConsumerWidget {
     ref.watch(pushControllerProvider);
     ref.watch(deliveryReceiptsProvider);
     ref.watch(presenceControllerProvider);
+    ref.watch(quietOffsetSyncProvider);
 
     return MaterialApp.router(
       onGenerateTitle: (ctx) => AppL10n.of(ctx).appName,
@@ -27,6 +29,9 @@ class HushloApp extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
+      builder:
+          (context, child) =>
+              AppLockGate(child: child ?? const SizedBox.shrink()),
       localizationsDelegates: const [
         AppL10n.delegate,
         GlobalMaterialLocalizations.delegate,

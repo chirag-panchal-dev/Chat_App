@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isQuietHours,
+  buildPushPayload as buildPayloadForQuiet,
+  buildGroupPushPayload as buildGroupPayloadForQuiet,
+  QUIET_CHANNEL_ID,
   buildGroupPushBody, buildGroupPushPayload, isSystemMessage, selectGroupRecipients, removeMemberFromGroup, isOrphanCleanupCandidate,
   buildPushBody, buildPushPayload, buildSummaryPreview, isInvalidTokenErrorCode, isMuted,
   isNewerThanSummary, isOlderThan, isRecentAuth, pushSkipReason, resolveSettings, selectRecipient, truncate,
@@ -13,6 +17,13 @@ describe("preview", () => {
   });
   it("collapses whitespace", () => expect(truncate("a \n\n b")).toBe("a b"));
   it("image => Photo", () => expect(buildSummaryPreview({ type: "image", text: "cap" })).toBe("Photo"));
+  it("voice => Voice message", () => expect(buildSummaryPreview({ type: "voice" })).toBe("Voice message"));
+  it("voice push bodies (direct + group), and hidden when previews are off", () => {
+    expect(buildPushBody({ type: "voice" }, true)).toBe("Sent a voice message");
+    expect(buildPushBody({ type: "voice" }, false)).toBe("New message");
+    expect(buildGroupPushBody({ type: "voice" }, "Ann", true)).toBe("Ann: Voice message");
+    expect(buildGroupPushBody({ type: "voice" }, "Ann", false)).toBe("New message");
+  });
   it("push body respects preview setting", () => {
     expect(buildPushBody({ type: "text", text: "hi" }, true)).toBe("hi");
     expect(buildPushBody({ type: "text", text: "hi" }, false)).toBe("New message");
@@ -143,5 +154,81 @@ describe("groups", () => {
     expect(isOrphanCleanupCandidate("chatMedia/c/u/f")).toBe(true);
     expect(isOrphanCleanupCandidate("groupAvatars/g_x/f")).toBe(false);
     expect(isOrphanCleanupCandidate("avatars/u/f")).toBe(false);
+  });
+});
+
+describe("quiet hours", () => {
+  const at = (h: number, m = 0) => Date.UTC(2026, 0, 15, h, m);
+  const q = (over: Record<string, unknown> = {}) => ({
+    quietHoursEnabled: true, quietStartMin: 22 * 60, quietEndMin: 7 * 60, utcOffsetMin: 0, ...over,
+  });
+
+  it("off by default / when disabled / when malformed", () => {
+    expect(isQuietHours(undefined, at(23))).toBe(false);
+    expect(isQuietHours({}, at(23))).toBe(false);
+    expect(isQuietHours(q({ quietHoursEnabled: false }), at(23))).toBe(false);
+    expect(isQuietHours(q({ quietStartMin: "22:00" }), at(23))).toBe(false);
+    expect(isQuietHours(q({ quietEndMin: 1440 }), at(23))).toBe(false);
+    expect(isQuietHours(q({ quietStartMin: -1 }), at(23))).toBe(false);
+    expect(isQuietHours(q({ utcOffsetMin: 99999 }), at(23))).toBe(false);
+  });
+  it("window crossing midnight", () => {
+    expect(isQuietHours(q(), at(22, 0))).toBe(true);
+    expect(isQuietHours(q(), at(23, 59))).toBe(true);
+    expect(isQuietHours(q(), at(0, 0))).toBe(true);
+    expect(isQuietHours(q(), at(6, 59))).toBe(true);
+    expect(isQuietHours(q(), at(7, 0))).toBe(false);
+    expect(isQuietHours(q(), at(12, 0))).toBe(false);
+    expect(isQuietHours(q(), at(21, 59))).toBe(false);
+  });
+  it("same-day window", () => {
+    const w = q({ quietStartMin: 13 * 60, quietEndMin: 14 * 60 });
+    expect(isQuietHours(w, at(13, 0))).toBe(true);
+    expect(isQuietHours(w, at(13, 59))).toBe(true);
+    expect(isQuietHours(w, at(14, 0))).toBe(false);
+    expect(isQuietHours(w, at(12, 59))).toBe(false);
+  });
+  it("start == end is empty", () => {
+    expect(isQuietHours(q({ quietStartMin: 600, quietEndMin: 600 }), at(10, 0))).toBe(false);
+  });
+  it("uses the user's local time (offset in minutes)", () => {
+    // 17:30 UTC is 23:00 in India (+330) -> quiet; in UTC it is not.
+    expect(isQuietHours(q({ utcOffsetMin: 330 }), at(17, 30))).toBe(true);
+    expect(isQuietHours(q({ utcOffsetMin: 0 }), at(17, 30))).toBe(false);
+    // 03:00 UTC is 22:00 the previous day at UTC-5 -> quiet.
+    expect(isQuietHours(q({ utcOffsetMin: -300 }), at(3, 0))).toBe(true);
+    // negative offset wrapping below midnight: 08:00 UTC at UTC-8 is 00:00 local
+    expect(isQuietHours(q({ utcOffsetMin: -480 }), at(8, 0))).toBe(true);
+    expect(isQuietHours(q({ utcOffsetMin: -480 }), at(2, 0))).toBe(false); // 18:00 local
+  });
+  it("quiet payloads use the silent channel and drop the iOS sound", () => {
+    const base = { tokens: ["t"], conversationId: "c", body: "b", channelId: "messages" };
+    const loud = buildPayloadForQuiet({ ...base, senderDisplayName: "A" });
+    const quiet = buildPayloadForQuiet({ ...base, senderDisplayName: "A", quiet: true });
+    expect(loud.android.notification.channelId).toBe("messages");
+    expect(loud.apns.payload.aps.sound).toBe("default");
+    expect(quiet.android.notification.channelId).toBe(QUIET_CHANNEL_ID);
+    expect(quiet.apns.payload.aps.sound).toBeUndefined();
+    expect(quiet.data).toEqual({ conversationId: "c", type: "message" });
+    const g = buildGroupPayloadForQuiet({ ...base, groupName: "G", quiet: true });
+    expect(g.android.notification.channelId).toBe(QUIET_CHANNEL_ID);
+    expect(g.apns.payload.aps.sound).toBeUndefined();
+  });
+});
+
+describe("documents and videos", () => {
+  it("summary previews never reveal file names", () => {
+    expect(buildSummaryPreview({ type: "video" })).toBe("Video");
+    expect(buildSummaryPreview({ type: "file", text: "secret.pdf" })).toBe("Document");
+  });
+  it("push bodies respect the preview setting", () => {
+    expect(buildPushBody({ type: "video" }, false)).toBe("New message");
+    expect(buildPushBody({ type: "video" }, true)).toBe("Sent a video");
+    expect(buildPushBody({ type: "file" }, true)).toBe("Sent a document");
+  });
+  it("group push bodies", () => {
+    expect(buildGroupPushBody({ type: "video" }, "Aarav", true)).toBe("Aarav: Video");
+    expect(buildGroupPushBody({ type: "file" }, "Aarav", true)).toBe("Aarav: Document");
+    expect(buildGroupPushBody({ type: "file" }, "Aarav", false)).toBe("New message");
   });
 });

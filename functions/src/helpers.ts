@@ -19,6 +19,9 @@ export function truncate(s: string, max = MAX_PREVIEW_LENGTH): string {
 /** Conversation-list preview (<= 80 chars). Images => 'Photo'. */
 export function buildSummaryPreview(msg: MessageLike): string {
   if (msg.type === "image") return "Photo";
+  if (msg.type === "voice") return "Voice message";
+  if (msg.type === "video") return "Video";
+  if (msg.type === "file") return "Document";
   return typeof msg.text === "string" ? truncate(msg.text) : "";
 }
 
@@ -26,6 +29,9 @@ export function buildSummaryPreview(msg: MessageLike): string {
 export function buildPushBody(msg: MessageLike, showMessagePreview: boolean): string {
   if (!showMessagePreview) return "New message";
   if (msg.type === "image") return "Sent a photo";
+  if (msg.type === "voice") return "Sent a voice message";
+  if (msg.type === "video") return "Sent a video";
+  if (msg.type === "file") return "Sent a document";
   const t = typeof msg.text === "string" ? truncate(msg.text, 120) : "";
   return t.length > 0 ? t : "New message";
 }
@@ -49,6 +55,29 @@ export function isMuted(mutedUntilMillis: number | null | undefined, nowMillis: 
 export interface RecipientSettings {
   notificationEnabled?: unknown;
   showMessagePreview?: unknown;
+  quietHoursEnabled?: unknown;
+  quietStartMin?: unknown;
+  quietEndMin?: unknown;
+  utcOffsetMin?: unknown;
+}
+
+const isMinuteOfDay = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v < 1440;
+
+/**
+ * True when the recipient's local time is inside their quiet-hours window.
+ * Local time = UTC now + the offset the app last stored (minutes). The window
+ * may cross midnight; start == end is empty; anything malformed means "not quiet".
+ */
+export function isQuietHours(s: RecipientSettings | undefined | null, nowMillis: number): boolean {
+  if (!s || s.quietHoursEnabled !== true) return false;
+  if (!isMinuteOfDay(s.quietStartMin) || !isMinuteOfDay(s.quietEndMin)) return false;
+  const off = typeof s.utcOffsetMin === "number" && Number.isFinite(s.utcOffsetMin) ? s.utcOffsetMin : 0;
+  if (Math.abs(off) > 840) return false;
+  const start = s.quietStartMin;
+  const end = s.quietEndMin;
+  if (start === end) return false;
+  const local = ((Math.floor(nowMillis / 60000) + Math.trunc(off)) % 1440 + 1440) % 1440;
+  return start < end ? local >= start && local < end : local >= start || local < end;
 }
 
 /** Defaults: notifications on, previews OFF (privacy-first) when unset. */
@@ -106,9 +135,12 @@ export interface PushPayload {
     notification: { channelId: string };
   };
   apns: {
-    payload: { aps: { sound: string; "thread-id": string } };
+    payload: { aps: { sound?: string; "thread-id": string } };
   };
 }
+
+/** Silent delivery during quiet hours: low-importance Android channel, no iOS sound. */
+export const QUIET_CHANNEL_ID = "messages_quiet";
 
 /** Builds the multicast payload. `data` never contains message text. */
 export function buildPushPayload(opts: {
@@ -117,6 +149,7 @@ export function buildPushPayload(opts: {
   conversationId: string;
   body: string;
   channelId: string;
+  quiet?: boolean;
 }): PushPayload {
   const title =
     typeof opts.senderDisplayName === "string" && opts.senderDisplayName.trim() !== ""
@@ -126,8 +159,14 @@ export function buildPushPayload(opts: {
     tokens: opts.tokens,
     notification: { title, body: opts.body },
     data: { conversationId: opts.conversationId, type: "message" },
-    android: { priority: "high", notification: { channelId: opts.channelId } },
-    apns: { payload: { aps: { sound: "default", "thread-id": opts.conversationId } } },
+    android: { priority: "high", notification: { channelId: opts.quiet ? QUIET_CHANNEL_ID : opts.channelId } },
+    apns: {
+      payload: {
+        aps: opts.quiet
+          ? { "thread-id": opts.conversationId }
+          : { sound: "default", "thread-id": opts.conversationId },
+      },
+    },
   };
 }
 
@@ -186,6 +225,9 @@ export function buildGroupPushBody(
   const name =
     typeof senderDisplayName === "string" && senderDisplayName.trim() !== "" ? senderDisplayName.trim() : "Someone";
   if (msg.type === "image") return `${name}: Photo`;
+  if (msg.type === "voice") return `${name}: Voice message`;
+  if (msg.type === "video") return `${name}: Video`;
+  if (msg.type === "file") return `${name}: Document`;
   const t = typeof msg.text === "string" ? truncate(msg.text, 120) : "";
   return t.length > 0 ? `${name}: ${t}` : "New message";
 }
@@ -197,6 +239,7 @@ export function buildGroupPushPayload(opts: {
   conversationId: string;
   body: string;
   channelId: string;
+  quiet?: boolean;
 }): PushPayload {
   const title =
     typeof opts.groupName === "string" && opts.groupName.trim() !== "" ? opts.groupName.trim() : "Hushlo";
@@ -204,8 +247,14 @@ export function buildGroupPushPayload(opts: {
     tokens: opts.tokens,
     notification: { title, body: opts.body },
     data: { conversationId: opts.conversationId, type: "message" },
-    android: { priority: "high", notification: { channelId: opts.channelId } },
-    apns: { payload: { aps: { sound: "default", "thread-id": opts.conversationId } } },
+    android: { priority: "high", notification: { channelId: opts.quiet ? QUIET_CHANNEL_ID : opts.channelId } },
+    apns: {
+      payload: {
+        aps: opts.quiet
+          ? { "thread-id": opts.conversationId }
+          : { sound: "default", "thread-id": opts.conversationId },
+      },
+    },
   };
 }
 

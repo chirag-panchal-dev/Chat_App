@@ -20,6 +20,10 @@ service cloud.firestore {
       return d.get(k, null) == null || d[k] is timestamp;
     }
 
+    function nullOrMinuteOfDay(d, k) {
+      return d.get(k, null) == null || (d[k] is int && d[k] >= 0 && d[k] < 1440);
+    }
+
     function nullOrBool(d, k) {
       return d.get(k, null) == null || d[k] is bool;
     }
@@ -109,7 +113,13 @@ service cloud.firestore {
         function settingsShape(d) {
           return d.keys().hasOnly(['notificationEnabled', 'showMessagePreview',
                                    'readReceiptsEnabled', 'lastSeenVisibility',
-                                   'themeMode', 'updatedAt'])
+                                   'themeMode', 'updatedAt', 'quietHoursEnabled',
+                                   'quietStartMin', 'quietEndMin', 'utcOffsetMin'])
+              && nullOrBool(d, 'quietHoursEnabled')
+              && nullOrMinuteOfDay(d, 'quietStartMin')
+              && nullOrMinuteOfDay(d, 'quietEndMin')
+              && (d.get('utcOffsetMin', null) == null
+                  || (d.utcOffsetMin is int && d.utcOffsetMin >= -840 && d.utcOffsetMin <= 840))
               && nullOrBool(d, 'notificationEnabled')
               && nullOrBool(d, 'showMessagePreview')
               && nullOrBool(d, 'readReceiptsEnabled')
@@ -137,6 +147,22 @@ service cloud.firestore {
         }
         allow read: if isOwner(uid);
         allow create, update: if isOwner(uid) && deviceShape(request.resource.data);
+        allow delete: if isOwner(uid);
+      }
+
+      // Saved messages: private notes (typed, or copied from a chat). Owner only.
+      match /saved/{noteId} {
+        function noteShape(d) {
+          return d.keys().hasOnly(['text', 'createdAt', 'sourceName'])
+              && d.keys().hasAll(['text', 'createdAt'])
+              && d.text is string && d.text.size() >= 1 && d.text.size() <= 4000
+              && d.text.matches('(?s).*\\S.*')
+              && d.createdAt == request.time
+              && nullOrString(d, 'sourceName', 100);
+        }
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && noteShape(request.resource.data);
+        allow update: if false;
         allow delete: if isOwner(uid);
       }
 
@@ -228,10 +254,25 @@ service cloud.firestore {
             && (!nw.diff(old).affectedKeys().hasAny(['updatedAt']) || nw.updatedAt == request.time);
       }
 
-      // Admin: rename, change photo, add/remove members, promote/demote.
+      // Disappearing-messages timer in seconds: off, 24 hours, 7 days, 90 days.
+      function validTimer(d) {
+        return d.get('disappearAfterSec', 0) in [0, 86400, 604800, 7776000];
+      }
+
+      // Direct chat: either member may change only the timer.
+      function directTimerUpdate(old, nw) {
+        return old.get('type', null) == 'direct'
+            && request.auth.uid in old.memberIds
+            && nw.diff(old).affectedKeys().hasOnly(['disappearAfterSec'])
+            && nw.get('disappearAfterSec', null) is int
+            && validTimer(nw);
+      }
+
+      // Admin: rename, change photo, add/remove members, promote/demote, set the timer.
       function adminUpdate(old, nw) {
         return request.auth.uid in old.adminIds
-            && nw.diff(old).affectedKeys().hasOnly(['name', 'photoPath', 'memberIds', 'adminIds', 'updatedAt'])
+            && nw.diff(old).affectedKeys().hasOnly(['name', 'photoPath', 'memberIds', 'adminIds', 'updatedAt', 'disappearAfterSec'])
+            && validTimer(nw)
             && groupUpdateCommon(old, nw)
             && nw.memberIds.size() >= 1 && nw.memberIds.size() <= 20
             && nw.adminIds.size() >= 1;
@@ -253,11 +294,14 @@ service cloud.firestore {
       // Also serves `where memberIds array-contains uid` queries.
       allow read: if signedIn() && request.auth.uid in resource.data.memberIds;
       allow create: if signedIn() && (convShape(request.resource.data) || groupShape(request.resource.data));
-      // Direct chats: never updatable by clients (summary fields: Cloud Functions only).
+      // Direct chats: clients may change only the disappearing-messages timer
+      // (summary fields: Cloud Functions only).
       // Groups: admin edits or a member leaving (see helpers above).
-      allow update: if signedIn() && resource.data.get('type', null) == 'group'
-                    && (adminUpdate(resource.data, request.resource.data)
-                        || leaveUpdate(resource.data, request.resource.data));
+      allow update: if signedIn()
+                    && (directTimerUpdate(resource.data, request.resource.data)
+                        || (resource.data.get('type', null) == 'group'
+                            && (adminUpdate(resource.data, request.resource.data)
+                                || leaveUpdate(resource.data, request.resource.data))));
       allow delete: if false;
 
       // Join requests (admin approval). The requester is not a member, so they
@@ -288,14 +332,16 @@ service cloud.firestore {
 
       match /members/{uid} {
         function memberShape(d) {
-          return d.keys().hasOnly(['joinedAt', 'lastReadAt', 'mutedUntil', 'archived', 'pinned', 'clearedAt'])
+          return d.keys().hasOnly(['joinedAt', 'lastReadAt', 'mutedUntil', 'archived', 'pinned', 'clearedAt', 'chatTheme'])
               && d.keys().hasAll(['joinedAt'])
               && isTs(d.joinedAt)
               && nullOrTs(d, 'lastReadAt')
               && nullOrTs(d, 'mutedUntil')
               && nullOrTs(d, 'clearedAt')
               && nullOrBool(d, 'archived')
-              && nullOrBool(d, 'pinned');
+              && nullOrBool(d, 'pinned')
+              && (d.get('chatTheme', null) == null
+                  || d.chatTheme in ['ocean', 'violet', 'rose', 'sunset', 'forest', 'graphite']);
         }
         allow read: if isOwner(uid);
         allow create: if isOwner(uid) && isMemberAfter(cid) && memberShape(request.resource.data);
@@ -349,7 +395,8 @@ service cloud.firestore {
           return d.keys().hasOnly(['clientMessageId', 'senderId', 'type', 'text', 'mediaPath',
                                    'thumbnailPath', 'mimeType', 'sizeBytes', 'width', 'height',
                                    'replyToMessageId', 'createdAt', 'editedAt',
-                                   'deletedForEveryoneAt', 'event', 'targetUid'])
+                                   'deletedForEveryoneAt', 'event', 'targetUid',
+                                   'durationMs', 'waveform', 'expiresAt', 'timerSec', 'fileName', 'pageCount'])
               && d.keys().hasAll(['clientMessageId', 'senderId', 'type', 'createdAt'])
               && d.clientMessageId == mid
               && d.senderId == request.auth.uid
@@ -357,20 +404,138 @@ service cloud.firestore {
               && d.get('editedAt', null) == null
               && d.get('deletedForEveryoneAt', null) == null
               && nullOrString(d, 'replyToMessageId', 128)
+              && expiryOk(d, cid)
+              && (d.type == 'file' || d.get('fileName', null) == null)
+              && (d.type == 'file' || d.get('pageCount', null) == null)
               && (d.type == 'text' ? textMessage(d)
                   : (d.type == 'image' ? imageMessage(d, cid)
-                  : (d.type == 'system' && systemMessage(d, cid))));
+                  : (d.type == 'voice' ? voiceMessage(d, cid)
+                  : (d.type == 'file' ? fileMessage(d, cid)
+                  : (d.type == 'video' ? videoMessage(d, cid)
+                  : (d.type == 'system' && systemMessage(d, cid)))))));
+        }
+
+        // Disappearing messages: when the chat has a timer, every non-system
+        // message must carry `expiresAt` (a future time no later than the timer
+        // plus 10 min of slack); otherwise it must not. A Firestore TTL policy on
+        // `messages.expiresAt` deletes the document; clients hide it sooner.
+        function expiryOk(d, cid) {
+          let sec = get(convRef(cid)).data.get('disappearAfterSec', 0);
+          return d.type == 'system' || sec == 0
+              ? d.get('expiresAt', null) == null
+              : (d.get('expiresAt', null) is timestamp
+                 && d.expiresAt > request.time
+                 && d.expiresAt <= request.time + duration.value(sec, 's') + duration.value(10, 'm'));
+        }
+
+        // Only voice messages may carry these.
+        function noVoiceFields(d) {
+          return d.get('durationMs', null) == null && d.get('waveform', null) == null;
+        }
+
+        // Voice note: audio uploaded to the sender's own chatMedia folder.
+        // Max 5 minutes; `waveform` is a small list of bar heights (0..100) for
+        // drawing the bubble without downloading the audio.
+        function voiceMessage(d, cid) {
+          return noSystemFields(d)
+              && d.get('text', null) == null
+              && d.get('thumbnailPath', null) == null
+              && d.get('width', null) == null
+              && d.get('height', null) == null
+              && d.get('mediaPath', null) is string
+              && d.mediaPath.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+')
+              && d.get('mimeType', null) in ['audio/mp4', 'audio/aac', 'audio/mpeg']
+              && d.get('sizeBytes', null) is int
+              && d.sizeBytes > 0 && d.sizeBytes <= 10 * 1024 * 1024
+              && d.get('durationMs', null) is int
+              && d.durationMs >= 500 && d.durationMs <= 5 * 60 * 1000
+              && d.get('waveform', null) is list
+              && d.waveform.size() >= 1 && d.waveform.size() <= 64;
+        }
+
+        // Document: uploaded to the sender's own chatMedia folder. Allowlisted
+        // types only (no executables or archives other than zip), max 25 MB.
+        function ownMedia(p, cid) {
+          return p is string && p.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+');
+        }
+
+        function fileMessage(d, cid) {
+          return noSystemFields(d)
+              && noVoiceFields(d)
+              && d.get('text', null) == null
+              && (d.get('thumbnailPath', null) == null
+                  || (d.get('mimeType', null) == 'application/pdf' && ownMedia(d.thumbnailPath, cid)))
+              && (d.get('pageCount', null) == null
+                  || (d.get('mimeType', null) == 'application/pdf' && d.pageCount is int
+                      && d.pageCount >= 1 && d.pageCount <= 100000))
+              && d.get('width', null) == null
+              && d.get('height', null) == null
+              && d.get('mediaPath', null) is string
+              && d.mediaPath.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+')
+              && d.get('mimeType', null) in ['application/pdf', 'application/msword',
+                   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                   'application/vnd.ms-excel',
+                   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                   'application/vnd.ms-powerpoint',
+                   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                   'text/plain', 'text/csv', 'application/zip']
+              && d.get('sizeBytes', null) is int
+              && d.sizeBytes > 0 && d.sizeBytes <= 25 * 1024 * 1024
+              && d.get('fileName', null) is string
+              && d.fileName.size() >= 1 && d.fileName.size() <= 200;
+        }
+
+        // Video: MP4 / QuickTime, max 50 MB and 10 minutes. No thumbnail
+        // (the bubble shows a play card sized from width/height).
+        function videoMessage(d, cid) {
+          return noSystemFields(d)
+              && d.get('waveform', null) == null
+              && d.get('text', null) == null
+              && (d.get('thumbnailPath', null) == null || ownMedia(d.thumbnailPath, cid))
+              && d.get('mediaPath', null) is string
+              && d.mediaPath.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+')
+              && d.get('mimeType', null) in ['video/mp4', 'video/quicktime']
+              && d.get('sizeBytes', null) is int
+              && d.sizeBytes > 0 && d.sizeBytes <= 50 * 1024 * 1024
+              && d.get('durationMs', null) is int
+              && d.durationMs >= 300 && d.durationMs <= 10 * 60 * 1000
+              && (d.get('width', null) == null || (d.width is int && d.width > 0))
+              && (d.get('height', null) == null || (d.height is int && d.height > 0));
         }
 
         function noSystemFields(d) {
-          return d.get('event', null) == null && d.get('targetUid', null) == null;
+          return d.get('event', null) == null && d.get('targetUid', null) == null
+              && d.get('timerSec', null) == null;
+        }
+
+        // "Disappearing messages set to X" notice: written in the same batch as
+        // the timer change (getAfter sees the new value). Direct: either member;
+        // group: admins only.
+        function timerNotice(d, cid, conv) {
+          return noVoiceFields(d)
+              && d.get('text', null) == null
+              && d.get('mediaPath', null) == null
+              && d.get('thumbnailPath', null) == null
+              && d.get('mimeType', null) == null
+              && d.get('sizeBytes', null) == null
+              && d.get('width', null) == null
+              && d.get('height', null) == null
+              && d.get('targetUid', null) == null
+              && d.get('timerSec', null) in [0, 86400, 604800, 7776000]
+              && d.timerSec is int
+              && getAfter(convRef(cid)).data.get('disappearAfterSec', 0) == d.timerSec
+              && request.auth.uid in conv.memberIds
+              && (conv.get('type', null) == 'group' ? request.auth.uid in conv.adminIds : true);
         }
 
         // Group-only event message. 'left' is written in the same batch as the
         // leave update; get() sees pre-batch state, so the leaver is still a member.
         function systemMessage(d, cid) {
           let conv = get(convRef(cid)).data;
-          return conv.get('type', null) == 'group'
+          return d.get('event', null) == 'timer' ? timerNotice(d, cid, conv)
+              : (conv.get('type', null) == 'group'
+              && noVoiceFields(d)
+              && d.get('timerSec', null) == null
               && d.get('event', null) in ['added', 'removed', 'left', 'renamed']
               && d.get('text', null) == null
               && d.get('mediaPath', null) == null
@@ -384,11 +549,12 @@ service cloud.firestore {
                   : (d.get('targetUid', null) is string && d.targetUid.size() >= 1 && d.targetUid.size() <= 128))
               && (d.event == 'left'
                   ? d.targetUid == request.auth.uid
-                  : request.auth.uid in conv.adminIds);
+                  : request.auth.uid in conv.adminIds));
         }
 
         function textMessage(d) {
           return noSystemFields(d)
+              && noVoiceFields(d)
               && d.get('text', null) is string
               && d.text.size() >= 1 && d.text.size() <= 4000
               && d.text.matches('(?s).*\\S.*')
@@ -402,6 +568,7 @@ service cloud.firestore {
 
         function imageMessage(d, cid) {
           return noSystemFields(d)
+              && noVoiceFields(d)
               && nullOrString(d, 'text', 1000)
               && d.get('mediaPath', null) is string
               && d.mediaPath.matches('^chatMedia/' + cid + '/' + request.auth.uid + '/.+')
@@ -444,11 +611,25 @@ service cloud.firestore {
                       && request.time < resource.data.createdAt + duration.value(48, 'h')
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['deletedForEveryoneAt', 'text', 'mediaPath', 'thumbnailPath',
-                                     'mimeType', 'sizeBytes', 'width', 'height'])
+                                     'mimeType', 'sizeBytes', 'width', 'height',
+                                     'durationMs', 'waveform', 'fileName', 'pageCount'])
                       && request.resource.data.deletedForEveryoneAt == request.time
                       && request.resource.data.get('text', null) == null
                       && request.resource.data.get('mediaPath', null) == null
                       && request.resource.data.get('thumbnailPath', null) == null;
+        // Edit: the sender may change the text of their own text message within
+        // 15 minutes. Only `text` and `editedAt` (server time) may change.
+        allow update: if signedIn() && isMember(cid)
+                      && resource.data.senderId == request.auth.uid
+                      && resource.data.get('type', null) == 'text'
+                      && resource.data.get('deletedForEveryoneAt', null) == null
+                      && request.time < resource.data.createdAt + duration.value(15, 'm')
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['text', 'editedAt'])
+                      && request.resource.data.editedAt == request.time
+                      && request.resource.data.get('text', null) is string
+                      && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 4000
+                      && request.resource.data.text.matches('(?s).*\\S.*');
         allow delete: if false;
 
         match /reactions/{reactorUid} {

@@ -1,5 +1,8 @@
 enum ConversationType { direct, group }
 
+/// Timer choices for disappearing messages, in seconds (mirrored in the rules).
+const disappearOptions = [0, 86400, 604800, 7776000];
+
 /// Hard product limit for group size (enforced by the security rules too).
 const maxGroupMembers = 20;
 
@@ -16,7 +19,13 @@ class Conversation {
     this.lastMessageAt,
     this.lastSenderId,
     this.deletedAccounts = const [],
+    this.disappearAfterSec = 0,
   });
+
+  /// Disappearing-messages timer in seconds (0 = off).
+  final int disappearAfterSec;
+  Duration? get disappearAfter =>
+      disappearAfterSec > 0 ? Duration(seconds: disappearAfterSec) : null;
 
   final String id;
   final List<String> memberIds;
@@ -56,7 +65,11 @@ class MemberPrefs {
     this.archived = false,
     this.pinned = false,
     this.clearedAt,
+    this.chatTheme,
   });
+
+  /// This user's chosen look for the chat (a `ChatTheme.id`), null = default.
+  final String? chatTheme;
 
   /// Messages at or before this time were cleared by this user (their own
   /// view only; the other participant keeps their copy).
@@ -122,7 +135,17 @@ class InboxLastMessage {
     this.pending = false,
     this.deleted = false,
     this.isSystem = false,
+    this.isVoice = false,
+    this.isTimer = false,
+    this.isVideo = false,
+    this.isFile = false,
+    this.durationMs,
   });
+  final bool isVoice;
+  final bool isTimer;
+  final bool isVideo;
+  final bool isFile;
+  final int? durationMs;
   final bool deleted;
   final bool isSystem;
   final DateTime at;

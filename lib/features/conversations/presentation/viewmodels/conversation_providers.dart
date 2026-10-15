@@ -59,7 +59,7 @@ final inboxProvider = Provider<AsyncValue<Inbox>>((ref) {
           prefs,
           me: me,
           lastMessage:
-              m == null
+              m == null || m.isExpired()
                   ? null
                   : InboxLastMessage(
                     at: m.createdAt,
@@ -69,6 +69,11 @@ final inboxProvider = Provider<AsyncValue<Inbox>>((ref) {
                     pending: m.status == SendStatus.sending,
                     deleted: m.deleted,
                     isSystem: m.isSystem,
+                    isTimer: m.event == GroupEvent.timer,
+                    isVoice: m.isVoice,
+                    isVideo: m.isVideo,
+                    isFile: m.isFile,
+                    durationMs: m.durationMs,
                   ),
         ),
       );

@@ -95,7 +95,33 @@ class HushloColors extends ThemeExtension<HushloColors> {
   );
 
   @override
-  HushloColors copyWith() => this;
+  HushloColors copyWith({
+    Color? bubbleOut,
+    Color? bubbleOutEnd,
+    Color? chatBackground,
+    Color? accent,
+  }) => HushloColors(
+    background: background,
+    surface: surface,
+    surfaceSubtle: surfaceSubtle,
+    primary: primary,
+    primaryContainer: primaryContainer,
+    onPrimary: onPrimary,
+    textPrimary: textPrimary,
+    textSecondary: textSecondary,
+    outline: outline,
+    success: success,
+    warning: warning,
+    error: error,
+    bubbleOut: bubbleOut ?? this.bubbleOut,
+    onBubbleOut: onBubbleOut,
+    bubbleIn: bubbleIn,
+    onBubbleIn: onBubbleIn,
+    bubbleOutEnd: bubbleOutEnd ?? this.bubbleOutEnd,
+    accent: accent ?? this.accent,
+    chatBackground: chatBackground ?? this.chatBackground,
+    tickRead: tickRead,
+  );
 
   @override
   HushloColors lerp(ThemeExtension<HushloColors>? other, double t) {

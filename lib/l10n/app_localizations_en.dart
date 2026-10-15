@@ -279,7 +279,7 @@ class AppL10nEn extends AppL10n {
   String get exactUsername => 'Exact username';
 
   @override
-  String get searchHint => 'Enter someone\'s exact username to start a chat.';
+  String get searchHint => 'Search in this chat';
 
   @override
   String get userNotFound => 'No one found with that username.';
@@ -1045,4 +1045,343 @@ class AppL10nEn extends AppL10n {
 
   @override
   String get viewInfo => 'Info';
+
+  @override
+  String get appLock => 'App lock';
+
+  @override
+  String get appLockHelp => 'Ask for Face ID, fingerprint or your phone passcode when you open Hushlo.';
+
+  @override
+  String get lockAfter => 'Lock after';
+
+  @override
+  String get timeoutImmediately => 'Immediately';
+
+  @override
+  String get timeout1m => 'After 1 minute';
+
+  @override
+  String get timeout5m => 'After 5 minutes';
+
+  @override
+  String get timeout15m => 'After 15 minutes';
+
+  @override
+  String get timeout1h => 'After 1 hour';
+
+  @override
+  String get hideAppPreview => 'Hide app preview';
+
+  @override
+  String get hideAppPreviewHelp => 'Covers Hushlo in the app switcher so your chats aren\'t visible.';
+
+  @override
+  String get lockedTitle => 'Hushlo is locked';
+
+  @override
+  String get lockedBody => 'Unlock to see your chats.';
+
+  @override
+  String get unlockButton => 'Unlock';
+
+  @override
+  String get unlockReason => 'Unlock Hushlo';
+
+  @override
+  String get changeLockReason => 'Confirm it\'s you to change App lock';
+
+  @override
+  String get lockNotAvailable => 'Set up a screen lock (Face ID, fingerprint or a passcode) in your phone\'s settings first.';
+
+  @override
+  String get lockVerifyFailed => 'Couldn\'t verify it\'s you. Try again.';
+
+  @override
+  String get lockedOutMessage => 'Too many attempts. Try again later or use your phone passcode.';
+
+  @override
+  String get voiceMessage => 'Voice message';
+
+  @override
+  String get voiceHoldHint => 'Hold to record, release to send';
+
+  @override
+  String get voiceSlideCancel => 'Slide to cancel';
+
+  @override
+  String get voiceRecording => 'Recording…';
+
+  @override
+  String get voiceCancel => 'Cancel';
+
+  @override
+  String get voiceSendTooltip => 'Send voice message';
+
+  @override
+  String get voiceMicTooltip => 'Record voice message';
+
+  @override
+  String get voiceLockedHint => 'Recording locked';
+
+  @override
+  String get voiceTooShort => 'Hold longer to record a voice message.';
+
+  @override
+  String get voiceMicDenied => 'Microphone access is off. Allow it in Settings to send voice messages.';
+
+  @override
+  String get voiceFailed => 'Couldn\'t record. Please try again.';
+
+  @override
+  String get voiceLimitReached => '5 minute limit reached. Send or discard it.';
+
+  @override
+  String get voicePlayError => 'Couldn\'t play this voice message.';
+
+  @override
+  String get voiceUploading => 'Sending voice message…';
+
+  @override
+  String get voiceSendFailed => 'Voice message not sent';
+
+  @override
+  String get voicePlayTooltip => 'Play voice message';
+
+  @override
+  String get voicePauseTooltip => 'Pause voice message';
+
+  @override
+  String get voiceSpeedTooltip => 'Playback speed';
+
+  @override
+  String get disappearingTitle => 'Disappearing messages';
+
+  @override
+  String get disappearOff => 'Off';
+
+  @override
+  String get disappear24h => '24 hours';
+
+  @override
+  String get disappear7d => '7 days';
+
+  @override
+  String get disappear90d => '90 days';
+
+  @override
+  String get disappearHint => 'New messages in this chat disappear after the chosen time. Messages already sent aren\'t affected, and anyone in the chat can still copy or screenshot them.';
+
+  @override
+  String get disappearAdminsOnly => 'Only admins can change this';
+
+  @override
+  String get disappearFailed => 'Couldn\'t change the setting. Please try again.';
+
+  @override
+  String get timerUpdated => 'Disappearing messages updated';
+
+  @override
+  String sysTimerOff(String actor) {
+    return '$actor turned off disappearing messages';
+  }
+
+  @override
+  String sysTimerOn(String actor, String duration) {
+    return '$actor set messages to disappear after $duration';
+  }
+
+  @override
+  String get editMessage => 'Edit';
+
+  @override
+  String get editingMessage => 'Editing message';
+
+  @override
+  String get editedLabel => 'Edited';
+
+  @override
+  String get saveEdit => 'Save edit';
+
+  @override
+  String get editWindowHint => 'You can edit a message for 15 minutes after sending it.';
+
+  @override
+  String get searchInChat => 'Search';
+
+  @override
+  String get searchNoResults => 'No results';
+
+  @override
+  String get searchOlderTooltip => 'Older match';
+
+  @override
+  String get searchNewerTooltip => 'Newer match';
+
+  @override
+  String get searchClose => 'Close search';
+
+  @override
+  String searchCount(int position, int total) {
+    return '$position of $total';
+  }
+
+  @override
+  String get searchLimit => 'Searches the messages on this phone and loads older ones as needed.';
+
+  @override
+  String get quietHours => 'Quiet hours';
+
+  @override
+  String get quietHoursHelp => 'Notifications still arrive, but silently: no sound or vibration.';
+
+  @override
+  String get quietFrom => 'From';
+
+  @override
+  String get quietUntil => 'Until';
+
+  @override
+  String get savedMessages => 'Saved messages';
+
+  @override
+  String get savedMessagesDesc => 'Notes to yourself. Only you can see them.';
+
+  @override
+  String get savedEmptyTitle => 'Nothing saved yet';
+
+  @override
+  String get savedEmptyBody => 'Write a note below, or select a message in any chat and tap the bookmark to keep it here.';
+
+  @override
+  String get savedHint => 'Write a note';
+
+  @override
+  String get savedAdd => 'Save note';
+
+  @override
+  String get savedFromChat => 'Saved';
+
+  @override
+  String savedCount(int count) {
+    return 'Saved $count';
+  }
+
+  @override
+  String savedFrom(String name) {
+    return 'From $name';
+  }
+
+  @override
+  String get saveToSaved => 'Save to Saved messages';
+
+  @override
+  String get savedFailed => 'Couldn\'t save. Please try again.';
+
+  @override
+  String get noteDelete => 'Delete note';
+
+  @override
+  String get noteCopy => 'Copy';
+
+  @override
+  String get noteCopied => 'Copied';
+
+  @override
+  String get noteDeleted => 'Note deleted';
+
+  @override
+  String get attachDocument => 'Document';
+
+  @override
+  String get attachVideo => 'Video';
+
+  @override
+  String get attachRecordVideo => 'Record video';
+
+  @override
+  String get document => 'Document';
+
+  @override
+  String get video => 'Video';
+
+  @override
+  String get fileUnsupported => 'That file type can\'t be sent. Supported: PDF, Word, Excel, PowerPoint, text, CSV and ZIP.';
+
+  @override
+  String get fileTooLarge => 'That file is too large. Documents can be up to 25 MB and videos up to 50 MB.';
+
+  @override
+  String get fileEmpty => 'That file is empty.';
+
+  @override
+  String get videoTooLong => 'Videos can be up to 10 minutes long.';
+
+  @override
+  String get videoTooShort => 'That video is too short to send.';
+
+  @override
+  String get filePickFailed => 'Couldn\'t open that file. Please try again.';
+
+  @override
+  String get fileUploading => 'Sending…';
+
+  @override
+  String get fileSendFailed => 'Not sent';
+
+  @override
+  String get fileOpenFailed => 'Couldn\'t open this file. Check your connection and try again.';
+
+  @override
+  String get fileOpening => 'Opening…';
+
+  @override
+  String get videoPlayError => 'Couldn\'t play this video.';
+
+  @override
+  String get closeViewer => 'Close';
+
+  @override
+  String pagesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pages',
+      one: '1 page',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatTheme => 'Chat theme';
+
+  @override
+  String get chatThemeHint => 'Only you see this. It changes how this chat looks on your phone, not on theirs.';
+
+  @override
+  String get chatThemeDefault => 'Default';
+
+  @override
+  String get themeOcean => 'Ocean';
+
+  @override
+  String get themeViolet => 'Violet';
+
+  @override
+  String get themeRose => 'Rose';
+
+  @override
+  String get themeSunset => 'Sunset';
+
+  @override
+  String get themeForest => 'Forest';
+
+  @override
+  String get themeGraphite => 'Graphite';
+
+  @override
+  String get chatThemeFailed => 'Couldn\'t change the theme. Please try again.';
+
+  @override
+  String get chatThemeSelected => 'Selected';
 }

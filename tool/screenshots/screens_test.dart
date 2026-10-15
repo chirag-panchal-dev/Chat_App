@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:hushlo/core/theme/app_theme.dart';
 import 'package:hushlo/core/utils/connectivity.dart';
+import 'package:hushlo/core/errors/failure.dart';
 import 'package:hushlo/features/auth/presentation/screens/auth_screen.dart';
 import 'package:hushlo/features/auth/presentation/screens/verify_email_screen.dart';
 import 'package:hushlo/features/auth/presentation/viewmodels/auth_providers.dart';
@@ -33,7 +34,12 @@ import 'package:hushlo/features/conversations/presentation/viewmodels/conversati
 import 'package:hushlo/features/notifications/presentation/push_controller.dart';
 import 'package:hushlo/features/onboarding/presentation/intro_screen.dart';
 import 'package:hushlo/features/presence/presentation/presence_controller.dart';
+import 'package:hushlo/features/saved/domain/saved_note.dart';
+import 'package:hushlo/features/saved/presentation/screens/saved_messages_screen.dart';
+import 'package:hushlo/features/saved/presentation/viewmodels/saved_providers.dart';
+import 'package:hushlo/features/files/domain/picked_media.dart';
 import 'package:hushlo/features/privacy_settings/domain/privacy_settings.dart';
+import 'package:hushlo/features/privacy_settings/domain/quiet_hours.dart';
 import 'package:hushlo/features/privacy_settings/presentation/screens/settings_screen.dart';
 import 'package:hushlo/features/privacy_settings/presentation/viewmodels/settings_providers.dart';
 import 'package:hushlo/features/profile/domain/entities/profile.dart';
@@ -45,6 +51,11 @@ import 'package:hushlo/features/user_search/presentation/viewmodels/user_search_
 import 'package:hushlo/features/account_deletion/presentation/delete_account_screen.dart';
 import 'package:hushlo/features/attachments/presentation/screens/attachment_preview_screen.dart';
 import 'package:hushlo/l10n/app_localizations.dart';
+import 'package:hushlo/features/app_lock/domain/app_lock_authenticator.dart';
+import 'package:hushlo/features/app_lock/domain/app_lock_models.dart';
+import 'package:hushlo/features/app_lock/presentation/app_lock_controller.dart';
+import 'package:hushlo/features/app_lock/presentation/app_lock_gate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hushlo/features/groups/domain/group_models.dart';
 import 'package:hushlo/features/groups/presentation/screens/group_info_screen.dart';
 import 'package:hushlo/features/groups/presentation/screens/join_group_screen.dart';
@@ -151,6 +162,14 @@ class _FakeSettingsRepo implements SettingsRepository {
   Future<void> setShowLastSeen(String uid, bool v) async {}
   @override
   Future<void> setThemeMode(String uid, ThemeMode m) async {}
+  @override
+  Future<void> setQuietHours(
+    String uid,
+    QuietHours q, {
+    required int utcOffsetMin,
+  }) async {}
+  @override
+  Future<void> syncUtcOffset(String uid, int m) async {}
 }
 
 class _FakePush extends PushController {
@@ -212,6 +231,15 @@ ChatState _groupChatState() {
   return ChatState(latest: msgs, loading: false, hasMore: false);
 }
 
+class _FakeAuth implements AppLockAuthenticator {
+  @override
+  Future<bool> isAvailable() async => true;
+  @override
+  Future<AuthOutcome> authenticate(String reason) async => AuthOutcome.failed;
+}
+
+late SharedPreferences _prefs;
+
 class _FakeSearch extends UserSearchViewModel {
   _FakeSearch(this.s);
   final UserSearchState s;
@@ -251,7 +279,11 @@ List<Override> _base({
     ),
   ),
   profileByUidProvider.overrideWith((ref, uid) async => _people[uid]),
-  settingsProvider.overrideWith((ref) => Stream.value(const PrivacySettings())),
+  settingsProvider.overrideWith(
+    (ref) => Stream.value(
+      const PrivacySettings(quietHours: QuietHours(enabled: true)),
+    ),
+  ),
   isOnlineProvider.overrideWith((ref) => Stream.value(true)),
   blockedUidsProvider.overrideWith((ref) => Stream.value(const <String>{})),
   pushControllerProvider.overrideWith(
@@ -273,6 +305,7 @@ List<Override> _base({
     (ref, id) => Stream.value(
       MemberPrefs(
         pinned: id == 'aarav_me',
+        chatTheme: id == 'aarav_me' ? _shotTheme : null,
         lastReadAt: id == 'meera_me' ? _t(8, 0) : DateTime.now(),
       ),
     ),
@@ -285,6 +318,8 @@ List<Override> _base({
     ),
   ),
   groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+  sharedPreferencesProvider.overrideWithValue(_prefs),
+  appLockAuthenticatorProvider.overrideWithValue(_FakeAuth()),
   groupReceiptsProvider.overrideWith(
     (ref, id) => Stream.value({
       'aarav': Receipts(
@@ -422,6 +457,120 @@ ChatState _chatState() {
   return ChatState(latest: msgs, loading: false, hasMore: false);
 }
 
+/// Chat theme applied to the 'aarav_me' chat in screenshots (null = default).
+String? _shotTheme;
+
+ChatState _filesState() {
+  ChatMessage media(
+    String id,
+    String sender,
+    DateTime at,
+    MessageType type, {
+    String? name,
+    String? mime,
+    int? size,
+    int? durationMs,
+    bool thumb = false,
+    int? pages,
+  }) => ChatMessage(
+    id: id,
+    senderId: sender,
+    type: type,
+    createdAt: at,
+    status: SendStatus.sent,
+    mediaPath: 'chatMedia/x/$sender/$id',
+    fileName: name,
+    mimeType: mime,
+    sizeBytes: size,
+    durationMs: durationMs,
+    thumbnailPath: thumb ? 'chatMedia/x/$sender/${id}_thumb.jpg' : null,
+    pageCount: pages,
+    width: type == MessageType.video ? 1920 : null,
+    height: type == MessageType.video ? 1080 : null,
+  );
+  final msgs = <ChatMessage>[
+    _m('7', 'me', _t(17, 55), 'Great, sending the final version now'),
+    _m('5', 'aarav', _t(17, 50), 'Perfect, thanks!'),
+    media(
+      '4',
+      'me',
+      _t(17, 48),
+      MessageType.file,
+      name: 'Budget 2026.xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      size: 482 * 1024,
+    ),
+    media(
+      '3',
+      'aarav',
+      _t(17, 45),
+      MessageType.video,
+      mime: 'video/mp4',
+      size: 12 * 1024 * 1024,
+      durationMs: 74000,
+      thumb: true,
+    ),
+    media(
+      '2',
+      'aarav',
+      _t(17, 44),
+      MessageType.file,
+      name: 'Quarterly report final v3 (reviewed).pdf',
+      mime: 'application/pdf',
+      size: 2 * 1024 * 1024 + 300 * 1024,
+      thumb: true,
+      pages: 12,
+    ),
+    _m(
+      '6',
+      'aarav',
+      _t(17, 52),
+      'Here are the photos from the offsite. The first one is the venue, the second is the whole team at lunch, and the third is the whiteboard from the planning session. Let me know if you want the full-resolution versions.',
+      image: true,
+    ),
+    _m('1', 'me', _t(17, 40), 'Can you send the report and the walkthrough?'),
+  ];
+  return ChatState(
+    latest: msgs,
+    loading: false,
+    hasMore: false,
+    mediaUploads: [
+      MediaUpload(
+        id: 'u1',
+        doc: PickedDocument(
+          file: File('/tmp/x.pdf'),
+          fileName: 'Contract signed.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 1536 * 1024,
+          pageCount: 8,
+          preview: File('/tmp/none.jpg'),
+        ),
+        progress: 0.4,
+      ),
+      MediaUpload(
+        id: 'u3',
+        photo: PickedPhoto(
+          file: File('/tmp/none.jpg'),
+          caption: 'Sunset from the terrace',
+        ),
+        progress: 0.7,
+      ),
+      MediaUpload(
+        id: 'u2',
+        video: PickedVideo(
+          file: File('/tmp/x.mp4'),
+          mimeType: 'video/mp4',
+          sizeBytes: 9 * 1024 * 1024,
+          duration: const Duration(seconds: 42),
+          width: 1920,
+          height: 1080,
+        ),
+        failure: const NetworkFailure(),
+      ),
+    ],
+  );
+}
+
 Widget _app(Widget home, List<Override> overrides, ThemeMode mode) =>
     ProviderScope(
       overrides: overrides,
@@ -456,6 +605,12 @@ Future<void> _shot(WidgetTester t, String name) async {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    // ignore: invalid_use_of_visible_for_testing_member
+    SharedPreferences.setMockInitialValues({
+      'applock.enabled': true,
+      'applock.timeout': 'fiveMinutes',
+    });
+    _prefs = await SharedPreferences.getInstance();
     await _loadFonts();
   });
 
@@ -551,6 +706,89 @@ void main() {
         ),
       ], dark: dark);
     });
+    testWidgets('files ${dark ? 'dark' : 'light'}', (t) async {
+      await run(
+        t,
+        '14_files',
+        const ChatScreen(conversationId: 'aarav_me'),
+        [
+          ..._base(),
+          chatViewModelProvider(
+            'aarav_me',
+          ).overrideWith(() => _FakeChatVM('aarav_me', _filesState())),
+        ],
+        dark: dark,
+        size: const Size(390, 1400),
+      );
+    });
+    testWidgets('attach sheet ${dark ? 'dark' : 'light'}', (t) async {
+      t.view.physicalSize = const Size(390, 844) * 3;
+      t.view.devicePixelRatio = 3;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        RepaintBoundary(
+          key: _boundary,
+          child: _app(
+            const ChatScreen(conversationId: 'aarav_me'),
+            [
+              ..._base(),
+              chatViewModelProvider(
+                'aarav_me',
+              ).overrideWith(() => _FakeChatVM('aarav_me', _chatState())),
+            ],
+            dark ? ThemeMode.dark : ThemeMode.light,
+          ),
+        ),
+      );
+      await t.pump(const Duration(milliseconds: 600));
+      await t.tap(find.byTooltip('Attach photo'));
+      await t.pump(const Duration(milliseconds: 100));
+      await t.pump(const Duration(milliseconds: 600));
+      expect(find.text('Document'), findsOneWidget);
+      expect(find.text('Video'), findsOneWidget);
+      await _shot(t, '14b_attach_${dark ? 'dark' : 'light'}');
+    });
+    testWidgets('themed chat ${dark ? 'dark' : 'light'}', (t) async {
+      _shotTheme = 'violet';
+      addTearDown(() => _shotTheme = null);
+      await run(t, '15_themed', const ChatScreen(conversationId: 'aarav_me'), [
+        ..._base(),
+        chatViewModelProvider(
+          'aarav_me',
+        ).overrideWith(() => _FakeChatVM('aarav_me', _chatState())),
+      ], dark: dark);
+    });
+    testWidgets('theme sheet ${dark ? 'dark' : 'light'}', (t) async {
+      _shotTheme = 'rose';
+      addTearDown(() => _shotTheme = null);
+      t.view.physicalSize = const Size(390, 844) * 3;
+      t.view.devicePixelRatio = 3;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        RepaintBoundary(
+          key: _boundary,
+          child: _app(
+            const ChatScreen(conversationId: 'aarav_me'),
+            [
+              ..._base(),
+              chatViewModelProvider(
+                'aarav_me',
+              ).overrideWith(() => _FakeChatVM('aarav_me', _chatState())),
+            ],
+            dark ? ThemeMode.dark : ThemeMode.light,
+          ),
+        ),
+      );
+      await t.pump(const Duration(milliseconds: 600));
+      await t.tap(find.byTooltip('More options'));
+      await t.pump(const Duration(milliseconds: 100));
+      await t.pump(const Duration(milliseconds: 600));
+      await t.tap(find.widgetWithText(PopupMenuItem<String>, 'Chat theme'));
+      await t.pump(const Duration(milliseconds: 100));
+      await t.pump(const Duration(milliseconds: 700));
+      expect(find.text('Graphite'), findsOneWidget);
+      await _shot(t, '15b_theme_sheet_${dark ? 'dark' : 'light'}');
+    });
     testWidgets('chat menu ${dark ? 'dark' : 'light'}', (t) async {
       t.view.physicalSize = const Size(390, 844) * 3;
       t.view.devicePixelRatio = 3;
@@ -575,6 +813,49 @@ void main() {
       await t.pump(const Duration(milliseconds: 600));
       expect(find.text('Clear chat'), findsOneWidget);
       await _shot(t, '06c_menu_${dark ? 'dark' : 'light'}');
+    });
+    testWidgets('chat search ${dark ? 'dark' : 'light'}', (t) async {
+      t.view.physicalSize = const Size(390, 844) * 3;
+      t.view.devicePixelRatio = 3;
+      addTearDown(t.view.reset);
+      await t.pumpWidget(
+        RepaintBoundary(
+          key: _boundary,
+          child: _app(
+            const ChatScreen(conversationId: 'aarav_me'),
+            [
+              ..._base(),
+              chatViewModelProvider(
+                'aarav_me',
+              ).overrideWith(() => _FakeChatVM('aarav_me', _chatState())),
+            ],
+            dark ? ThemeMode.dark : ThemeMode.light,
+          ),
+        ),
+      );
+      await t.pump(const Duration(milliseconds: 600));
+      await t.tap(find.byTooltip('More options'));
+      await t.pump(const Duration(milliseconds: 100));
+      await t.pump(const Duration(milliseconds: 600));
+      await t.tap(find.widgetWithText(PopupMenuItem<String>, 'Search'));
+      await t.pump(const Duration(milliseconds: 600));
+      await t.enterText(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byType(TextField),
+        ),
+        'the',
+      );
+      await t.pump(const Duration(milliseconds: 900));
+      expect(find.text('1 of 4'), findsOneWidget);
+      await t.tap(find.byTooltip('Older match'));
+      await t.pump(const Duration(milliseconds: 900));
+      expect(find.text('2 of 4'), findsOneWidget);
+      await t.tap(find.byTooltip('Newer match'));
+      await t.pump(const Duration(milliseconds: 900));
+      expect(find.text('1 of 4'), findsOneWidget);
+      await t.pump(const Duration(milliseconds: 2500));
+      await _shot(t, '06d_search_${dark ? 'dark' : 'light'}');
     });
     testWidgets('group chat ${dark ? 'dark' : 'light'}', (t) async {
       await run(
@@ -643,6 +924,15 @@ void main() {
         dark: dark,
       );
     });
+    testWidgets('lock screen ${dark ? 'dark' : 'light'}', (t) async {
+      await run(
+        t,
+        '17_lock',
+        const AppLockGate(child: Center(child: Text('chats'))),
+        _base(),
+        dark: dark,
+      );
+    });
     testWidgets('contact info ${dark ? 'dark' : 'light'}', (t) async {
       await run(
         t,
@@ -666,6 +956,31 @@ void main() {
         dark: dark,
         size: const Size(390, 1500),
       );
+    });
+    testWidgets('saved ${dark ? 'dark' : 'light'}', (t) async {
+      await run(t, '13_saved', const SavedMessagesScreen(), [
+        ..._base(),
+        savedNotesProvider.overrideWith(
+          (ref) => Stream.value([
+            SavedNote(
+              id: '3',
+              text: 'Flight BA142 lands 6:40 AM, terminal 5',
+              createdAt: _t(17, 20),
+            ),
+            SavedNote(
+              id: '2',
+              text: 'Let me know if you want any tweaks',
+              createdAt: _t(17, 10),
+              sourceName: 'Aarav',
+            ),
+            SavedNote(
+              id: '1',
+              text: 'Gift ideas for Mom: scarf, tea set, photo book',
+              createdAt: _t(9, 5, daysAgo: 1),
+            ),
+          ]),
+        ),
+      ], dark: dark);
     });
     testWidgets('new chat ${dark ? 'dark' : 'light'}', (t) async {
       await run(t, '09_newchat', const NewChatScreen(), [

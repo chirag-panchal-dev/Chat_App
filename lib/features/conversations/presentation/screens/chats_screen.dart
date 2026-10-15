@@ -15,6 +15,7 @@ import '../../../notifications/presentation/push_controller.dart';
 import '../../../privacy_settings/presentation/viewmodels/settings_providers.dart';
 import '../../../profile/domain/entities/profile.dart';
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
+import '../../../voice/domain/voice_models.dart';
 import '../../domain/entities/conversation.dart';
 import '../viewmodels/conversation_providers.dart';
 
@@ -82,6 +83,13 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
                       l.newGroup,
                       l.newGroupDesc(maxGroupMembers),
                       '/new-group',
+                    ),
+                    (
+                      Icons.bookmark_rounded,
+                      const [Color(0xFF59C3A6), Color(0xFF2FB38F)],
+                      l.savedMessages,
+                      l.savedMessagesDesc,
+                      '/saved',
                     ),
                     (
                       Icons.vpn_key_rounded,
@@ -350,6 +358,29 @@ class _ChatsScreenState extends ConsumerState<ChatsScreen> {
             title: Text(l.chats),
             onTap: () => setState(() => _showArchived = false),
           ),
+        if (!_showArchived && _filter == _Filter.all && q.isEmpty)
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            leading: Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFF59C3A6), Color(0xFF2FB38F)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: const Icon(Icons.bookmark_rounded, color: Colors.white),
+            ),
+            title: Text(
+              l.savedMessages,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(l.savedMessagesDesc, maxLines: 1),
+            onTap: () => context.push('/saved'),
+          ),
         if (source.isEmpty)
           Padding(
             padding: const EdgeInsets.all(40),
@@ -549,9 +580,15 @@ class _ConversationTile extends ConsumerWidget {
         last == null
             ? (conv.lastMessagePreview ?? l.noMessagesYet)
             : last.isSystem
-            ? l.groupUpdated
+            ? (last.isTimer ? l.timerUpdated : l.groupUpdated)
             : last.deleted
             ? (mineDeleted ? l.youDeletedMessage : l.messageDeleted)
+            : last.isVideo
+            ? l.video
+            : last.isFile
+            ? l.document
+            : last.isVoice
+            ? '${l.voiceMessage}${last.durationMs == null ? '' : ' (${formatVoiceDuration(last.durationMs!)})'}'
             : (last.isImage
                 ? (last.preview.isEmpty ? l.photo : last.preview)
                 : last.preview);

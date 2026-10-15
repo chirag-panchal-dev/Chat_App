@@ -1,13 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/firebase/firebase_providers.dart';
+import '../../../conversations/presentation/viewmodels/conversation_providers.dart';
 import '../../data/firestore_chat_repository.dart';
 import '../../domain/entities/chat_message.dart';
 import '../../domain/repositories/chat_repository.dart';
 import '../../domain/usecases/send_text_message_use_case.dart';
 
 final chatRepositoryProvider = Provider<ChatRepository>(
-  (ref) => FirestoreChatRepository(ref.watch(firestoreProvider)),
+  (ref) => FirestoreChatRepository(
+    ref.watch(firestoreProvider),
+    disappearAfter:
+        (cid) => ref.read(conversationProvider(cid)).value?.disappearAfter,
+  ),
 );
 
 final sendTextUseCaseProvider = Provider<SendTextMessageUseCase>(
@@ -45,6 +50,13 @@ final peerTypingProvider = StreamProvider.autoDispose
     .family<DateTime?, ({String cid, String peer})>((ref, k) {
       return ref.watch(chatRepositoryProvider).watchTyping(k.cid, k.peer);
     });
+
+/// Ticks every 15s; watched only by chats that contain disappearing messages,
+/// so expired ones vanish while the chat is open.
+final expiryClockProvider = StreamProvider.autoDispose<DateTime>((ref) async* {
+  yield DateTime.now();
+  yield* Stream.periodic(const Duration(seconds: 15), (_) => DateTime.now());
+});
 
 /// Ticks every 2s; watched only while someone is typing, so it expires the
 /// indicator without a permanent timer.

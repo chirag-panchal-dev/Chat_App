@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/config/app_config.dart';
 import 'core/logging/app_log.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'features/app_lock/presentation/app_lock_controller.dart';
 import 'features/notifications/data/local_notifications.dart';
 import 'firebase_options.dart';
 import 'setup_required_app.dart';
@@ -61,11 +63,16 @@ Future<void> bootstrap() async {
   final notifications = LocalNotifications();
   await notifications.init();
 
+  final prefs = await SharedPreferences.getInstance();
+
   runApp(
     ProviderScope(
       // Permission-denied and similar errors must never be retried blindly.
       retry: (_, __) => null,
-      overrides: [localNotificationsProvider.overrideWithValue(notifications)],
+      overrides: [
+        localNotificationsProvider.overrideWithValue(notifications),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
       child: const HushloApp(),
     ),
   );

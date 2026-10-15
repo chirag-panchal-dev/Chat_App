@@ -624,7 +624,7 @@ abstract class AppL10n {
   /// No description provided for @searchHint.
   ///
   /// In en, this message translates to:
-  /// **'Enter someone\'s exact username to start a chat.'**
+  /// **'Search in this chat'**
   String get searchHint;
 
   /// No description provided for @userNotFound.
@@ -2024,6 +2024,648 @@ abstract class AppL10n {
   /// In en, this message translates to:
   /// **'Info'**
   String get viewInfo;
+
+  /// No description provided for @appLock.
+  ///
+  /// In en, this message translates to:
+  /// **'App lock'**
+  String get appLock;
+
+  /// No description provided for @appLockHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask for Face ID, fingerprint or your phone passcode when you open Hushlo.'**
+  String get appLockHelp;
+
+  /// No description provided for @lockAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'Lock after'**
+  String get lockAfter;
+
+  /// No description provided for @timeoutImmediately.
+  ///
+  /// In en, this message translates to:
+  /// **'Immediately'**
+  String get timeoutImmediately;
+
+  /// No description provided for @timeout1m.
+  ///
+  /// In en, this message translates to:
+  /// **'After 1 minute'**
+  String get timeout1m;
+
+  /// No description provided for @timeout5m.
+  ///
+  /// In en, this message translates to:
+  /// **'After 5 minutes'**
+  String get timeout5m;
+
+  /// No description provided for @timeout15m.
+  ///
+  /// In en, this message translates to:
+  /// **'After 15 minutes'**
+  String get timeout15m;
+
+  /// No description provided for @timeout1h.
+  ///
+  /// In en, this message translates to:
+  /// **'After 1 hour'**
+  String get timeout1h;
+
+  /// No description provided for @hideAppPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide app preview'**
+  String get hideAppPreview;
+
+  /// No description provided for @hideAppPreviewHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Covers Hushlo in the app switcher so your chats aren\'t visible.'**
+  String get hideAppPreviewHelp;
+
+  /// No description provided for @lockedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Hushlo is locked'**
+  String get lockedTitle;
+
+  /// No description provided for @lockedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock to see your chats.'**
+  String get lockedBody;
+
+  /// No description provided for @unlockButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get unlockButton;
+
+  /// No description provided for @unlockReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock Hushlo'**
+  String get unlockReason;
+
+  /// No description provided for @changeLockReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm it\'s you to change App lock'**
+  String get changeLockReason;
+
+  /// No description provided for @lockNotAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up a screen lock (Face ID, fingerprint or a passcode) in your phone\'s settings first.'**
+  String get lockNotAvailable;
+
+  /// No description provided for @lockVerifyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t verify it\'s you. Try again.'**
+  String get lockVerifyFailed;
+
+  /// No description provided for @lockedOutMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Too many attempts. Try again later or use your phone passcode.'**
+  String get lockedOutMessage;
+
+  /// No description provided for @voiceMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice message'**
+  String get voiceMessage;
+
+  /// No description provided for @voiceHoldHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold to record, release to send'**
+  String get voiceHoldHint;
+
+  /// No description provided for @voiceSlideCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Slide to cancel'**
+  String get voiceSlideCancel;
+
+  /// No description provided for @voiceRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording…'**
+  String get voiceRecording;
+
+  /// No description provided for @voiceCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get voiceCancel;
+
+  /// No description provided for @voiceSendTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Send voice message'**
+  String get voiceSendTooltip;
+
+  /// No description provided for @voiceMicTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Record voice message'**
+  String get voiceMicTooltip;
+
+  /// No description provided for @voiceLockedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording locked'**
+  String get voiceLockedHint;
+
+  /// No description provided for @voiceTooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold longer to record a voice message.'**
+  String get voiceTooShort;
+
+  /// No description provided for @voiceMicDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone access is off. Allow it in Settings to send voice messages.'**
+  String get voiceMicDenied;
+
+  /// No description provided for @voiceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t record. Please try again.'**
+  String get voiceFailed;
+
+  /// No description provided for @voiceLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'5 minute limit reached. Send or discard it.'**
+  String get voiceLimitReached;
+
+  /// No description provided for @voicePlayError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t play this voice message.'**
+  String get voicePlayError;
+
+  /// No description provided for @voiceUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending voice message…'**
+  String get voiceUploading;
+
+  /// No description provided for @voiceSendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice message not sent'**
+  String get voiceSendFailed;
+
+  /// No description provided for @voicePlayTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Play voice message'**
+  String get voicePlayTooltip;
+
+  /// No description provided for @voicePauseTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause voice message'**
+  String get voicePauseTooltip;
+
+  /// No description provided for @voiceSpeedTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback speed'**
+  String get voiceSpeedTooltip;
+
+  /// No description provided for @disappearingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disappearing messages'**
+  String get disappearingTitle;
+
+  /// No description provided for @disappearOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get disappearOff;
+
+  /// No description provided for @disappear24h.
+  ///
+  /// In en, this message translates to:
+  /// **'24 hours'**
+  String get disappear24h;
+
+  /// No description provided for @disappear7d.
+  ///
+  /// In en, this message translates to:
+  /// **'7 days'**
+  String get disappear7d;
+
+  /// No description provided for @disappear90d.
+  ///
+  /// In en, this message translates to:
+  /// **'90 days'**
+  String get disappear90d;
+
+  /// No description provided for @disappearHint.
+  ///
+  /// In en, this message translates to:
+  /// **'New messages in this chat disappear after the chosen time. Messages already sent aren\'t affected, and anyone in the chat can still copy or screenshot them.'**
+  String get disappearHint;
+
+  /// No description provided for @disappearAdminsOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Only admins can change this'**
+  String get disappearAdminsOnly;
+
+  /// No description provided for @disappearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t change the setting. Please try again.'**
+  String get disappearFailed;
+
+  /// No description provided for @timerUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Disappearing messages updated'**
+  String get timerUpdated;
+
+  /// No description provided for @sysTimerOff.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} turned off disappearing messages'**
+  String sysTimerOff(String actor);
+
+  /// No description provided for @sysTimerOn.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} set messages to disappear after {duration}'**
+  String sysTimerOn(String actor, String duration);
+
+  /// No description provided for @editMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get editMessage;
+
+  /// No description provided for @editingMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing message'**
+  String get editingMessage;
+
+  /// No description provided for @editedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited'**
+  String get editedLabel;
+
+  /// No description provided for @saveEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Save edit'**
+  String get saveEdit;
+
+  /// No description provided for @editWindowHint.
+  ///
+  /// In en, this message translates to:
+  /// **'You can edit a message for 15 minutes after sending it.'**
+  String get editWindowHint;
+
+  /// No description provided for @searchInChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get searchInChat;
+
+  /// No description provided for @searchNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results'**
+  String get searchNoResults;
+
+  /// No description provided for @searchOlderTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Older match'**
+  String get searchOlderTooltip;
+
+  /// No description provided for @searchNewerTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Newer match'**
+  String get searchNewerTooltip;
+
+  /// No description provided for @searchClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close search'**
+  String get searchClose;
+
+  /// No description provided for @searchCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{position} of {total}'**
+  String searchCount(int position, int total);
+
+  /// No description provided for @searchLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Searches the messages on this phone and loads older ones as needed.'**
+  String get searchLimit;
+
+  /// No description provided for @quietHours.
+  ///
+  /// In en, this message translates to:
+  /// **'Quiet hours'**
+  String get quietHours;
+
+  /// No description provided for @quietHoursHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications still arrive, but silently: no sound or vibration.'**
+  String get quietHoursHelp;
+
+  /// No description provided for @quietFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'From'**
+  String get quietFrom;
+
+  /// No description provided for @quietUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'Until'**
+  String get quietUntil;
+
+  /// No description provided for @savedMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved messages'**
+  String get savedMessages;
+
+  /// No description provided for @savedMessagesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes to yourself. Only you can see them.'**
+  String get savedMessagesDesc;
+
+  /// No description provided for @savedEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing saved yet'**
+  String get savedEmptyTitle;
+
+  /// No description provided for @savedEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a note below, or select a message in any chat and tap the bookmark to keep it here.'**
+  String get savedEmptyBody;
+
+  /// No description provided for @savedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a note'**
+  String get savedHint;
+
+  /// No description provided for @savedAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Save note'**
+  String get savedAdd;
+
+  /// No description provided for @savedFromChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get savedFromChat;
+
+  /// No description provided for @savedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved {count}'**
+  String savedCount(int count);
+
+  /// No description provided for @savedFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'From {name}'**
+  String savedFrom(String name);
+
+  /// No description provided for @saveToSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to Saved messages'**
+  String get saveToSaved;
+
+  /// No description provided for @savedFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save. Please try again.'**
+  String get savedFailed;
+
+  /// No description provided for @noteDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete note'**
+  String get noteDelete;
+
+  /// No description provided for @noteCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get noteCopy;
+
+  /// No description provided for @noteCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get noteCopied;
+
+  /// No description provided for @noteDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Note deleted'**
+  String get noteDeleted;
+
+  /// No description provided for @attachDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Document'**
+  String get attachDocument;
+
+  /// No description provided for @attachVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get attachVideo;
+
+  /// No description provided for @attachRecordVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Record video'**
+  String get attachRecordVideo;
+
+  /// No description provided for @document.
+  ///
+  /// In en, this message translates to:
+  /// **'Document'**
+  String get document;
+
+  /// No description provided for @video.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get video;
+
+  /// No description provided for @fileUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'That file type can\'t be sent. Supported: PDF, Word, Excel, PowerPoint, text, CSV and ZIP.'**
+  String get fileUnsupported;
+
+  /// No description provided for @fileTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is too large. Documents can be up to 25 MB and videos up to 50 MB.'**
+  String get fileTooLarge;
+
+  /// No description provided for @fileEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'That file is empty.'**
+  String get fileEmpty;
+
+  /// No description provided for @videoTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'Videos can be up to 10 minutes long.'**
+  String get videoTooLong;
+
+  /// No description provided for @videoTooShort.
+  ///
+  /// In en, this message translates to:
+  /// **'That video is too short to send.'**
+  String get videoTooShort;
+
+  /// No description provided for @filePickFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open that file. Please try again.'**
+  String get filePickFailed;
+
+  /// No description provided for @fileUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get fileUploading;
+
+  /// No description provided for @fileSendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not sent'**
+  String get fileSendFailed;
+
+  /// No description provided for @fileOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open this file. Check your connection and try again.'**
+  String get fileOpenFailed;
+
+  /// No description provided for @fileOpening.
+  ///
+  /// In en, this message translates to:
+  /// **'Opening…'**
+  String get fileOpening;
+
+  /// No description provided for @videoPlayError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t play this video.'**
+  String get videoPlayError;
+
+  /// No description provided for @closeViewer.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get closeViewer;
+
+  /// No description provided for @pagesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 page} other{{count} pages}}'**
+  String pagesCount(int count);
+
+  /// No description provided for @chatTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat theme'**
+  String get chatTheme;
+
+  /// No description provided for @chatThemeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only you see this. It changes how this chat looks on your phone, not on theirs.'**
+  String get chatThemeHint;
+
+  /// No description provided for @chatThemeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get chatThemeDefault;
+
+  /// No description provided for @themeOcean.
+  ///
+  /// In en, this message translates to:
+  /// **'Ocean'**
+  String get themeOcean;
+
+  /// No description provided for @themeViolet.
+  ///
+  /// In en, this message translates to:
+  /// **'Violet'**
+  String get themeViolet;
+
+  /// No description provided for @themeRose.
+  ///
+  /// In en, this message translates to:
+  /// **'Rose'**
+  String get themeRose;
+
+  /// No description provided for @themeSunset.
+  ///
+  /// In en, this message translates to:
+  /// **'Sunset'**
+  String get themeSunset;
+
+  /// No description provided for @themeForest.
+  ///
+  /// In en, this message translates to:
+  /// **'Forest'**
+  String get themeForest;
+
+  /// No description provided for @themeGraphite.
+  ///
+  /// In en, this message translates to:
+  /// **'Graphite'**
+  String get themeGraphite;
+
+  /// No description provided for @chatThemeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t change the theme. Please try again.'**
+  String get chatThemeFailed;
+
+  /// No description provided for @chatThemeSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected'**
+  String get chatThemeSelected;
 }
 
 class _AppL10nDelegate extends LocalizationsDelegate<AppL10n> {

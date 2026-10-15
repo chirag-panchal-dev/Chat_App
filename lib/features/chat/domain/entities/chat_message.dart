@@ -1,9 +1,9 @@
 import '../../../../core/errors/failure.dart';
 
-enum MessageType { text, image, system }
+enum MessageType { text, image, voice, file, video, system }
 
 /// Group membership/name events rendered as centred notices in a group chat.
-enum GroupEvent { added, removed, left, renamed }
+enum GroupEvent { added, removed, left, renamed, timer }
 
 /// sending -> sent (stored on the server) -> delivered (the recipient's app
 /// has received it) -> read (the recipient opened the chat, and has read
@@ -74,7 +74,53 @@ class ChatMessage {
     this.deleted = false,
     this.event,
     this.targetUid,
+    this.durationMs,
+    this.waveform,
+    this.expiresAt,
+    this.timerSec,
+    this.editedAt,
+    this.fileName,
+    this.mimeType,
+    this.sizeBytes,
+    this.pageCount,
   });
+
+  /// PDFs: number of pages (shown under the file name).
+  final int? pageCount;
+
+  /// Documents: the original file name; documents and videos: type and size.
+  final String? fileName;
+  final String? mimeType;
+  final int? sizeBytes;
+
+  /// Set when the sender edited the text (shown as "Edited").
+  final DateTime? editedAt;
+  bool get edited => editedAt != null;
+
+  /// The sender may edit a sent text message for 15 minutes (matches rules).
+  static const editWindow = Duration(minutes: 15);
+  bool canEdit(String me, [DateTime? now]) =>
+      senderId == me &&
+      type == MessageType.text &&
+      !deleted &&
+      status != SendStatus.sending &&
+      status != SendStatus.failed &&
+      (now ?? DateTime.now()).difference(createdAt) < editWindow;
+
+  /// Disappearing messages: when this message goes away (null = never).
+  final DateTime? expiresAt;
+
+  /// For `GroupEvent.timer` notices: the new timer in seconds (0 = off).
+  final int? timerSec;
+
+  /// Past its expiry. A server TTL policy deletes the document eventually
+  /// (can lag by a day), so clients hide it from this moment.
+  bool isExpired([DateTime? now]) =>
+      expiresAt != null && !expiresAt!.isAfter(now ?? DateTime.now());
+
+  /// Voice notes: length and bar heights (0..100) for the waveform.
+  final int? durationMs;
+  final List<int>? waveform;
 
   /// Set for `MessageType.system` messages.
   final GroupEvent? event;
@@ -105,11 +151,25 @@ class ChatMessage {
       (now ?? DateTime.now()).difference(createdAt) < const Duration(hours: 48);
 
   bool get isImage => type == MessageType.image;
+  bool get isVoice => type == MessageType.voice;
+  bool get isFile => type == MessageType.file;
+  bool get isVideo => type == MessageType.video;
 
   /// Short description for reply quotes / previews.
-  String previewText(String photoLabel) =>
+  String previewText(
+    String photoLabel, {
+    String? voiceLabel,
+    String? videoLabel,
+    String? fileLabel,
+  }) =>
       isSystem
           ? ''
+          : isVoice
+          ? (voiceLabel ?? 'Voice message')
+          : isVideo
+          ? (videoLabel ?? 'Video')
+          : isFile
+          ? (fileName ?? fileLabel ?? 'Document')
           : isImage
           ? ((text?.isNotEmpty ?? false) ? text! : photoLabel)
           : (text ?? '');

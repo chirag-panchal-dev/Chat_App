@@ -49,9 +49,58 @@ abstract interface class ChatRepository {
     String? replyToId,
   });
 
+  /// Voice note whose audio is already uploaded to [mediaPath].
+  Future<void> sendVoice({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required int durationMs,
+    required List<int> waveform,
+    String? replyToId,
+  });
+
+  /// Document already uploaded to [mediaPath].
+  Future<void> sendFile({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required String fileName,
+    String? thumbnailPath,
+    int? pageCount,
+    String? replyToId,
+  });
+
+  /// Video already uploaded to [mediaPath].
+  Future<void> sendVideo({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required int durationMs,
+    int? width,
+    int? height,
+    String? thumbnailPath,
+    String? replyToId,
+  });
+
   /// Message ids the user deleted "for me".
   Stream<Set<String>> watchHidden(String conversationId, String uid);
   Future<void> hideMessage(String conversationId, String uid, String messageId);
+
+  /// Sender-only: replaces the text of a text message (rules: within 15 min).
+  Future<void> editMessage(
+    String conversationId,
+    String messageId,
+    String text,
+  );
 
   /// Sender-only: wipes the content and shows a tombstone to everyone.
   Future<void> deleteForEveryone(String conversationId, String messageId);

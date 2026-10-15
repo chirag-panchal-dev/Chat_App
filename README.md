@@ -57,10 +57,68 @@ Built with Flutter (Android + iOS) and Firebase.
 - Photos: gallery/camera, client-side compression + thumbnail, real upload progress, cancel/retry, full-screen viewer.
 - Day separators, grouped bubbles, scroll position preserved while reading, "new messages" pill.
 
+**Group chats** (up to 20 people)
+- Create a group from your chats or by exact username; group name + photo; group avatar, member list and admin badges.
+- **Admin-only** add/remove members, rename, change photo, promote/demote admins; the last admin can't be removed and a leaving last admin hands over automatically.
+- **Invite codes with admin approval:** admins create/reset/turn off a code; people enter it under "Join with a code" and an admin approves the request.
+- Sender names + avatars, system notices ("Aarav added Meera"), swipe-to-reply, reactions, delete, clear chat, leave group.
+- **Per-person receipts:** ticks turn ✓✓ when *everyone* received it and blue when *everyone* read it; **Message info** lists who read / received / hasn't received it.
+- "Aarav, Meera are typing…" in the header and the chat list.
+
 **Inbox & control**
 - Pin, mute, archive, search, All/Unread/Pinned filters; last message, time, unread dot and live "typing…" per row.
 - Block and report (reports are write-only for clients; only a moderator process can read them).
 - Notification permission asked in context; previews off by default (notifications say "New message").
+
+**Chat themes**
+- ⋯ menu → Chat theme (or the Chat theme row in contact / group info): pick Ocean, Violet, Rose, Sunset, Forest or Graphite, or go back to Default. It changes your outgoing bubble colour and the wallpaper tint, in light and dark mode, and applies instantly.
+- Personal: it's stored in your own member doc (`chatTheme`, only the owner can read or write it, ids allowlisted in the rules), so each person picks their own look and nobody else sees your choice.
+- Every bubble colour keeps white text at WCAG AA contrast (checked by a test). Unknown theme ids (from a newer app version) fall back to the default look.
+
+**Documents and videos**
+- The + menu offers Gallery, Camera, **Video** (from the gallery), **Record video** and **Document**.
+- Documents: PDF, Word, Excel, PowerPoint, TXT, CSV and ZIP up to **25 MB** (an allowlist in the app, the Firestore rules and the Storage rules: no executables, scripts or HTML). The card shows a type badge, the file name and size; tap downloads it under its real name and opens the system share sheet ("Open in…", "Save to Files").
+- Videos: MP4 / iPhone MOV up to **50 MB** and 10 minutes. The bubble is a play card (length, size) and tapping plays it full screen with scrubbing.
+- While uploading, the chat already shows the final-looking card (local PDF preview / video frame, pages, size) with a progress ring and ✕ to cancel; if it fails the same card stays with a ↻ retry control and "Not sent · Retry · Remove" (retry reuses the same message id, so there are no duplicates). Photos work the same way: tapping send in the photo preview returns to the chat at once and the photo uploads there with a progress ring. Photos, videos and PDFs with a preview fill the bubble edge to edge (no padding); voice notes still use a simpler pill.
+- Previews like WhatsApp: a PDF card shows an image of its first page with the name and "12 pages · 2.3 MB · PDF" below; a video shows a frame from the video with a play button and its length. They are made on the **sender's phone** (pdfx renders page 1, video_thumbnail grabs a frame), uploaded as small JPEGs, and shown to everyone, so receivers never render anything. If a preview can't be made (damaged or password-protected PDF) the file is still sent, just without it. Other documents (Word, Excel, …) show a type badge, not a page image.
+- Honest limits: no video compression (big videos upload at full size), no captions, no in-app document viewer, and the new Storage limits need `firebase deploy --only storage`. Storage and egress cost money on Blaze, which is why the limits are modest.
+
+**Voice messages**
+- Hold the mic to record (slide left to cancel, slide up to lock) or tap it for hands-free recording; 1 s minimum, 5 min maximum.
+- AAC (m4a) at 64 kbps; the waveform is generated while recording so bubbles render without downloading audio.
+- Play/pause, tap/drag to seek, 1x / 1.5x / 2x speed, one note plays at a time. Upload progress, cancel and retry (same id, no duplicates).
+- Needs microphone permission and Firebase Storage (rules enforce type, size and path). Android minSdk is 24.
+
+**Saved messages**
+- A private notes space at the top of your chat list (also under the ✏️ button): type notes to yourself, or select messages in any chat and tap the bookmark to copy their text there ("From Aarav").
+- Stored at `users/{uid}/saved`, readable only by you (rules-tested); deleted with your account. Works offline. Long-press a note to copy or delete.
+- Text only for now (photos/voice aren't copied), newest 500 notes are loaded, notes can't be edited.
+
+**Quiet hours**
+- Settings → Notifications → Quiet hours: pick a daily window (default 22:00–07:00, may cross midnight). Notifications still arrive but silently (no sound or vibration) on a low-importance Android channel / without an iOS sound.
+- Enforced by the `onMessageCreated` Cloud Function using the window and the phone's UTC offset stored in `users/{uid}/private/settings` (refreshed each app start while enabled, so travel/daylight saving self-correct); foreground alerts follow the same rule on-device.
+- Needs the Cloud Functions deploy (Blaze). Until then pushes aren't sent at all, so quiet hours has nothing to quiet. The window is evaluated per message and per person, so each user decides for themselves; mute still wins over quiet hours.
+
+**Search in a chat**
+- ⋯ menu → Search: type to find text (and photo captions) in that conversation; ↑/↓ jump between matches with "2 of 7", the current match is highlighted.
+- Honest limit: Firestore has no text search, so the app searches the messages loaded on the phone and fetches older pages as you step back (up to 8 pages per step). Deleted messages, voice notes and system notices are skipped.
+
+**Editing messages**
+- Select your own text message → pencil icon → the bubble itself becomes editable in place → ✓ to save, ✕ to cancel. Allowed for 15 minutes after sending (enforced by the security rules, not just the app).
+- Everyone sees an "Edited" label next to the time. Only the latest text is kept (no edit history); photos and voice notes can't be edited; deleted messages can't be revived.
+- Not pushed again: a notification already delivered keeps the original text.
+
+**Disappearing messages**
+- Per chat: Off / 24 hours / 7 days / 90 days. Either person in a direct chat can change it; in groups only admins. Everyone sees a notice when it changes.
+- New messages carry an `expiresAt`; the app hides them the moment they expire and a Firestore **TTL policy** on `messages.expiresAt` deletes them. TTL needs the Blaze plan, so it is *not* in `firestore.indexes.json` (that would block free-plan deploys); after enabling Blaze run `gcloud firestore fields ttls update expiresAt --collection-group=messages --enable-ttl --project=<id>` (deletion can lag by up to a day). Until then expired messages are only hidden in the app, not deleted.
+- Photos/voice files are removed afterwards by the daily `cleanupOrphanedMedia` function (needs Blaze). Reactions under an expired message are not cleaned up yet.
+- Honest limits: it only affects *new* messages, and nothing stops the other person from copying or screenshotting before they vanish.
+
+**App lock**
+- Optional Face ID / fingerprint / phone-passcode lock (system prompt; Hushlo never sees biometrics or the passcode).
+- Choose when it locks: immediately, or after 1 / 5 / 15 minutes or 1 hour in the background; always locked on a cold start.
+- "Hide app preview" covers the app in the app switcher. Turning the lock on or off requires authenticating first.
+- Device-local setting (each phone decides); needs a screen lock set up on the phone.
 
 **Trust & compliance**
 - In-app account deletion (with re-auth and an anonymous "why are you leaving" reason) plus a public deletion page (`public_web/`).
@@ -72,7 +130,7 @@ Built with Flutter (Android + iOS) and Firebase.
   reduced-motion support, large-text support, 48 dp tap targets, semantic labels on icon-only controls.
 
 ### Not in v1 (by design)
-Voice/video calls, group chats, stories/feeds, public channels, bots, payments, contact-book discovery, E2EE, web/desktop.
+Voice/video *calls* (voice *messages* are supported), public groups/communities, stories/feeds, public channels, bots, payments, contact-book discovery, E2EE, web/desktop.
 
 ---
 
@@ -233,7 +291,8 @@ message directly). Push notifications, account deletion and orphan cleanup need 
 | `publicProfiles/{uid}` · `usernameIndex/{name}` | Public profile; exact-lookup username reservation |
 | `users/{uid}/private/settings` · `users/{uid}/devices/{id}` · `users/{uid}/blocks/{uid}` | Owner-only settings, FCM tokens, blocks |
 | `presence/{uid}` | `lastActiveAt` heartbeat (readable by people you share a chat with) |
-| `conversations/{uid_uid}` | Members + server-maintained summary |
+| `conversations/{uid_uid}` · `conversations/g_<id>` | Direct chat or group (members, admins, name, photo) + server-maintained summary |
+| `groupInvites/{code}` · `…/joinRequests/{uid}` | Admin-created invite codes; join requests awaiting admin approval |
 | `…/members/{uid}` · `…/receipts/{uid}` · `…/typing/{uid}` | Per-user prefs (pin/mute/archive/cleared), delivery/read receipts, typing signal |
 | `…/messages/{id}` (+ `reactions/{uid}`) | Immutable messages (only the sender may wipe content within 48 h) |
 | `reports/{id}` · `deletionFeedback/{id}` | Write-only for clients |
@@ -269,7 +328,7 @@ flutter build ipa --release          # macOS + Xcode + signing required
 - Create an Android upload key and a `key.properties` (both git-ignored); configure signing in `android/app/build.gradle.kts`
   (the template falls back to the debug key, which is **not** acceptable for the Play Store).
 - iOS: set your Team/bundle ID, enable **Push Notifications**, upload an APNs `.p8` key to Firebase → Cloud Messaging.
-- Toolchain used: AGP 8.9.1 · Gradle 8.11.1 · Kotlin 2.2.20 · compileSdk 36 · minSdk 23 · iOS 15.0.
+- Toolchain used: AGP 8.9.1 · Gradle 8.11.1 · Kotlin 2.2.20 · compileSdk 36 · minSdk 24 · iOS 15.0.
 - Before store submission: real privacy policy + Data safety / App Privacy answers, a working account-deletion URL
   (`public_web/delete-account.html`), real screenshots, and a trademark check on the name.
 

@@ -9,6 +9,7 @@ import {
   buildGroupPushPayload,
   buildPushBody,
   buildPushPayload,
+  isQuietHours,
   buildSummaryPreview,
   isInvalidTokenErrorCode,
   isNewerThanSummary,
@@ -136,6 +137,7 @@ export const onMessageCreated = onDocumentCreated(
       conversationId: cid,
       body,
       channelId: ANDROID_CHANNEL_ID,
+      quiet: isQuietHours(settingsSnap.data(), Date.now()),
     });
 
     const res = await getMessaging().sendEachForMulticast(payload);
@@ -191,6 +193,7 @@ async function sendGroupPush(opts: {
         conversationId: cid,
         body: buildGroupPushBody(msg, senderName, resolveSettings(settingsSnap.data()).showMessagePreview),
         channelId: ANDROID_CHANNEL_ID,
+        quiet: isQuietHours(settingsSnap.data(), Date.now()),
       });
       const res = await getMessaging().sendEachForMulticast(payload);
       const bad: Promise<unknown>[] = [];

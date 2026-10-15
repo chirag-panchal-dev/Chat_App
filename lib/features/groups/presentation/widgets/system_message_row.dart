@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/l10n/l10n_ext.dart';
 import '../../../../core/theme/hushlo_colors.dart';
 import '../../../chat/domain/entities/chat_message.dart';
+import '../../../conversations/presentation/widgets/disappearing_tile.dart';
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
 
 /// Centred notice for group events ("Aarav added Meera", "You left", …).
@@ -34,6 +35,10 @@ class SystemMessageRow extends ConsumerWidget {
             : nameOf(message.targetUid ?? message.senderId, lower: false),
       ),
       GroupEvent.renamed => l.sysRenamed(actor),
+      GroupEvent.timer =>
+        (message.timerSec ?? 0) > 0
+            ? l.sysTimerOn(actor, disappearLabel(l, message.timerSec!))
+            : l.sysTimerOff(actor),
       null => l.groupUpdated,
     };
 

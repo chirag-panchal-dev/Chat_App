@@ -11,6 +11,26 @@ service firebase.storage {
       return request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
     }
 
+    // Voice notes (AAC in an MP4/M4A container).
+    function isVoice() {
+      return request.resource.contentType in ['audio/mp4', 'audio/aac', 'audio/mpeg'];
+    }
+
+    // Documents (allowlist, same as the Firestore rules) and videos.
+    function isDocument() {
+      return request.resource.contentType in ['application/pdf', 'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-powerpoint',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'text/plain', 'text/csv', 'application/zip'];
+    }
+
+    function isVideo() {
+      return request.resource.contentType in ['video/mp4', 'video/quicktime'];
+    }
+
     // Avatars: any signed-in user may read; only the owner writes.
     match /avatars/{uid}/{file} {
       allow read: if signedIn();
@@ -35,8 +55,9 @@ service firebase.storage {
       allow read: if isMember();
       allow create, update: if isMember()
                             && request.auth.uid == uploaderUid
-                            && isImage()
-                            && request.resource.size < 10 * 1024 * 1024;
+                            && (((isImage() || isVoice()) && request.resource.size < 10 * 1024 * 1024)
+                                || (isDocument() && request.resource.size <= 25 * 1024 * 1024)
+                                || (isVideo() && request.resource.size <= 50 * 1024 * 1024));
       allow delete: if signedIn() && request.auth.uid == uploaderUid;
     }
 

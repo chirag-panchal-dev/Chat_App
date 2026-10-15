@@ -71,7 +71,16 @@ class FakeChatRepository implements ChatRepository {
     required String senderId,
     required ImagePayload image,
     String? replyToId,
-  }) async {}
+  }) async {
+    if (mediaError != null) throw mediaError!;
+    imagesSent.add({
+      'id': messageId,
+      'caption': image.caption,
+      'replyTo': replyToId,
+    });
+  }
+
+  final imagesSent = <Map<String, Object?>>[];
 
   @override
   Stream<Set<String>> watchHidden(String c, String uid) => hidden.stream;
@@ -96,6 +105,97 @@ class FakeChatRepository implements ChatRepository {
   Future<void> setTyping(String c, String uid) async => typingSet.add(c);
   @override
   Future<void> clearTyping(String c, String uid) async => typingCleared++;
+
+  final voiceSent = <Map<String, Object?>>[];
+  Object? voiceError;
+  final fileSent = <Map<String, Object?>>[];
+  final videoSent = <Map<String, Object?>>[];
+  Object? mediaError;
+  @override
+  Future<void> sendFile({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required String fileName,
+    String? thumbnailPath,
+    int? pageCount,
+    String? replyToId,
+  }) async {
+    if (mediaError != null) throw mediaError!;
+    fileSent.add({
+      'id': messageId,
+      'path': mediaPath,
+      'mime': mimeType,
+      'size': sizeBytes,
+      'name': fileName,
+      'thumb': thumbnailPath,
+      'pages': pageCount,
+      'replyTo': replyToId,
+    });
+  }
+
+  @override
+  Future<void> sendVideo({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required int durationMs,
+    int? width,
+    int? height,
+    String? thumbnailPath,
+    String? replyToId,
+  }) async {
+    if (mediaError != null) throw mediaError!;
+    videoSent.add({
+      'id': messageId,
+      'path': mediaPath,
+      'mime': mimeType,
+      'size': sizeBytes,
+      'durationMs': durationMs,
+      'width': width,
+      'height': height,
+      'thumb': thumbnailPath,
+      'replyTo': replyToId,
+    });
+  }
+
+  final edits = <String, String>{};
+  Object? editError;
+  @override
+  Future<void> editMessage(String c, String m, String text) async {
+    if (editError != null) throw editError!;
+    edits[m] = text;
+  }
+
+  @override
+  Future<void> sendVoice({
+    required String conversationId,
+    required String messageId,
+    required String senderId,
+    required String mediaPath,
+    required String mimeType,
+    required int sizeBytes,
+    required int durationMs,
+    required List<int> waveform,
+    String? replyToId,
+  }) async {
+    if (voiceError != null) throw voiceError!;
+    voiceSent.add({
+      'id': messageId,
+      'path': mediaPath,
+      'mime': mimeType,
+      'size': sizeBytes,
+      'durationMs': durationMs,
+      'waveform': waveform,
+      'replyTo': replyToId,
+    });
+  }
 
   final deletedForEveryone = <String>[];
   @override
@@ -125,6 +225,15 @@ class FakeConversationRepository implements ConversationRepository {
   final prefsController = StreamController<MemberPrefs>.broadcast();
   @override
   Future<void> clearChat(String id, String uid) async => cleared.add(id);
+  Conversation? current;
+  final themes = <String, String?>{};
+  @override
+  Future<void> setChatTheme(String id, String uid, String? t) async =>
+      themes[id] = t;
+  final timers = <String, int>{};
+  @override
+  Future<void> setDisappearAfter(String id, String uid, int s) async =>
+      timers[id] = s;
   @override
   Future<void> ensureMember(String id, String uid) async {}
   @override
@@ -138,7 +247,8 @@ class FakeConversationRepository implements ConversationRepository {
   @override
   Future<void> setPinned(String id, String uid, bool v) async {}
   @override
-  Stream<Conversation?> watchConversation(String id) => const Stream.empty();
+  Stream<Conversation?> watchConversation(String id) =>
+      current == null ? const Stream.empty() : Stream.value(current);
   @override
   Stream<List<Conversation>> watchConversations(String uid) =>
       const Stream.empty();

@@ -1,5 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../../../files/presentation/widgets/file_bubble_content.dart';
+import '../../../files/presentation/widgets/video_bubble_content.dart';
+import '../../../voice/presentation/widgets/voice_bubble_content.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,11 +14,15 @@ import '../../../../core/utils/date_format.dart';
 import '../../../../core/widgets/user_avatar.dart';
 import '../../../attachments/data/image_processor.dart';
 import '../../domain/entities/chat_message.dart';
+import '../message_preview.dart';
 import '../viewmodels/chat_view_model.dart';
 import 'message_ticks.dart';
 
 /// A chat bubble. Consecutive messages from the same sender are grouped: the
 /// tail (sharp corner) and timestamp/ticks appear only on the last of a group.
+/// Width of photo, video and PDF-preview content in a bubble.
+const _mediaWidth = 260.0;
+
 class MessageBubble extends ConsumerWidget {
   const MessageBubble({
     super.key,
@@ -102,7 +109,10 @@ class MessageBubble extends ConsumerWidget {
       fontWeight: FontWeight.w500,
       color: fg.withValues(alpha: 0.7),
     );
-    final timeText = DateFormatter.time(message.createdAt, locale);
+    final timeText =
+        message.edited
+            ? '${context.l10n.editedLabel} · ${DateFormatter.time(message.createdAt, locale)}'
+            : DateFormatter.time(message.createdAt, locale);
     final metaStatus = status ?? message.status;
     final meta = Row(
       mainAxisSize: MainAxisSize.min,
@@ -118,6 +128,25 @@ class MessageBubble extends ConsumerWidget {
         ],
       ],
     );
+    // Time and ticks on a dark pill, drawn over photos and videos.
+    Widget metaPill() => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(timeText, style: timeStyle.copyWith(color: Colors.white)),
+          if (mine) ...[
+            const SizedBox(width: 3),
+            MessageTicks(status: metaStatus, baseColor: Colors.white, size: 15),
+          ],
+        ],
+      ),
+    );
+
     // Width the inline meta needs, so the last text line leaves room for it.
     final tp = TextPainter(
       text: TextSpan(text: timeText, style: timeStyle),
@@ -127,13 +156,23 @@ class MessageBubble extends ConsumerWidget {
     final metaWidth = tp.width + (mine ? 22 : 0) + 8;
 
     final hasText = !message.deleted && (message.text ?? '').isNotEmpty;
+    // Photos, videos and PDFs with a preview fill the bubble edge to edge.
+    final bleed =
+        !message.deleted &&
+        (message.isImage ||
+            message.isVideo ||
+            (message.isFile && message.thumbnailPath != null));
     final imageOnly = !message.deleted && message.isImage && !hasText;
     final bodyStyle = Theme.of(
       context,
     ).textTheme.bodyLarge?.copyWith(color: fg, height: 1.36, fontSize: 16);
 
     final bubble = Container(
-      constraints: BoxConstraints(maxWidth: maxW),
+      // Media bubbles are exactly as wide as the media (260): a long caption
+      // wraps underneath instead of stretching the bubble.
+      constraints: BoxConstraints(
+        maxWidth: bleed ? (maxW < _mediaWidth ? maxW : _mediaWidth) : maxW,
+      ),
       decoration: BoxDecoration(
         gradient:
             mine
@@ -146,7 +185,7 @@ class MessageBubble extends ConsumerWidget {
         color: mine ? null : c.bubbleIn,
         borderRadius: radius,
         border:
-            mine
+            (mine || bleed)
                 ? null
                 : Border.all(
                   color: c.outline.withValues(alpha: 0.7),
@@ -162,10 +201,20 @@ class MessageBubble extends ConsumerWidget {
           ),
         ],
       ),
+      clipBehavior: Clip.antiAlias,
+      // Incoming media bubbles: outline drawn over the edge-to-edge content.
+      foregroundDecoration:
+          (bleed && !mine)
+              ? BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(
+                  color: c.outline.withValues(alpha: 0.7),
+                  width: 0.8,
+                ),
+              )
+              : null,
       padding:
-          message.isImage && !message.deleted
-              ? const EdgeInsets.all(4)
-              : const EdgeInsets.fromLTRB(13, 8, 11, 7),
+          bleed ? EdgeInsets.zero : const EdgeInsets.fromLTRB(13, 8, 11, 7),
       child: IntrinsicWidth(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,7 +222,10 @@ class MessageBubble extends ConsumerWidget {
           children: [
             if (senderName != null && !mine)
               Padding(
-                padding: const EdgeInsets.only(bottom: 3),
+                padding:
+                    bleed
+                        ? const EdgeInsets.fromLTRB(13, 8, 11, 3)
+                        : const EdgeInsets.only(bottom: 3),
                 child: Text(
                   senderName!,
                   maxLines: 1,
@@ -230,50 +282,84 @@ class MessageBubble extends ConsumerWidget {
                 ],
               ),
             if (!message.deleted && message.replyToId != null)
-              _ReplyQuote(target: replyTarget, mine: mine, onTap: onReplyTap),
+              Padding(
+                padding: bleed ? const EdgeInsets.all(6) : EdgeInsets.zero,
+                child: _ReplyQuote(
+                  target: replyTarget,
+                  mine: mine,
+                  onTap: onReplyTap,
+                ),
+              ),
             if (!message.deleted && message.isImage)
               Stack(
                 children: [
                   _ImageContent(message: message, onTap: onImageTap),
                   if (imageOnly)
-                    Positioned(
-                      right: 8,
-                      bottom: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.42),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              timeText,
-                              style: timeStyle.copyWith(color: Colors.white),
-                            ),
-                            if (mine) ...[
-                              const SizedBox(width: 3),
-                              MessageTicks(
-                                status: metaStatus,
-                                baseColor: Colors.white,
-                                size: 15,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
+                    Positioned(right: 8, bottom: 8, child: metaPill()),
+                ],
+              ),
+            if (!message.deleted && message.isVoice)
+              Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: VoiceBubbleContent(
+                      messageId: message.id,
+                      mediaPath: message.mediaPath,
+                      durationMs: message.durationMs ?? 0,
+                      waveform: message.waveform ?? const [],
+                      foreground: fg,
                     ),
+                  ),
+                  Positioned(right: 0, bottom: 0, child: meta),
+                ],
+              ),
+            if (!message.deleted && message.isVideo)
+              Stack(
+                children: [
+                  VideoBubbleContent(
+                    mediaPath: message.mediaPath,
+                    durationMs: message.durationMs ?? 0,
+                    sizeBytes: message.sizeBytes,
+                    width: message.width,
+                    height: message.height,
+                    thumbnailPath: message.thumbnailPath,
+                    bleed: true,
+                  ),
+                  Positioned(right: 8, bottom: 8, child: metaPill()),
+                ],
+              ),
+            if (!message.deleted && message.isFile)
+              Stack(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: message.thumbnailPath != null ? 24 : 18,
+                    ),
+                    child: FileBubbleContent(
+                      messageId: message.id,
+                      mediaPath: message.mediaPath,
+                      fileName: message.fileName ?? context.l10n.document,
+                      mimeType: message.mimeType,
+                      sizeBytes: message.sizeBytes,
+                      foreground: fg,
+                      thumbnailPath: message.thumbnailPath,
+                      pageCount: message.pageCount,
+                      bleed: message.thumbnailPath != null,
+                    ),
+                  ),
+                  Positioned(
+                    right: message.thumbnailPath != null ? 11 : 0,
+                    bottom: message.thumbnailPath != null ? 7 : 0,
+                    child: meta,
+                  ),
                 ],
               ),
             if (hasText)
               Padding(
                 padding:
                     message.isImage
-                        ? const EdgeInsets.fromLTRB(9, 8, 8, 3)
+                        ? const EdgeInsets.fromLTRB(13, 7, 11, 7)
                         : EdgeInsets.zero,
                 child: Stack(
                   children: [
@@ -435,7 +521,7 @@ class _ReplyQuote extends StatelessWidget {
                 ),
               ),
               child: Text(
-                target?.previewText(l.photo) ?? l.originalUnavailable,
+                target?.preview(l) ?? l.originalUnavailable,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -535,10 +621,9 @@ class _ImageContent extends ConsumerWidget {
     final path = message.thumbnailPath ?? message.mediaPath;
     final aspect = clampedAspect(message.width, message.height);
 
-    Widget frame(Widget child) => ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: AspectRatio(aspectRatio: aspect, child: child),
-    );
+    // The bubble itself clips the corners (photos are edge to edge).
+    Widget frame(Widget child) =>
+        AspectRatio(aspectRatio: aspect, child: child);
 
     Widget placeholder({bool error = false, VoidCallback? retry}) => Container(
       color: c.surfaceSubtle,
@@ -567,7 +652,6 @@ class _ImageContent extends ConsumerWidget {
       label: l.photo,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
         child: SizedBox(
           width: 260,
           child: frame(

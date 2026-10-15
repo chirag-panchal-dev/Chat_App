@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/errors/failure.dart';
+import 'package:uuid/uuid.dart';
+
 import '../../../core/utils/validators.dart';
 import '../domain/entities/conversation.dart';
 import '../domain/repositories/conversation_repository.dart';
@@ -40,6 +42,7 @@ class FirestoreConversationRepository implements ConversationRepository {
       lastMessagePreview: d['lastMessagePreview'] as String?,
       lastMessageAt: _dt(d['lastMessageAt']),
       lastSenderId: d['lastSenderId'] as String?,
+      disappearAfterSec: (d['disappearAfterSec'] as num?)?.toInt() ?? 0,
       deletedAccounts:
           (d['deletedAccounts'] as List?)?.whereType<String>().toList() ??
           const [],
@@ -75,6 +78,7 @@ class FirestoreConversationRepository implements ConversationRepository {
               archived: d['archived'] as bool? ?? false,
               pinned: d['pinned'] as bool? ?? false,
               clearedAt: _dt(d['clearedAt']),
+              chatTheme: d['chatTheme'] as String?,
             );
           })
           .handleError((Object e) => throw Failure.from(e));
@@ -171,6 +175,32 @@ class FirestoreConversationRepository implements ConversationRepository {
     uid,
     {'mutedUntil': until == null ? null : Timestamp.fromDate(until)},
   );
+
+  @override
+  Future<void> setDisappearAfter(String id, String uid, int seconds) async {
+    try {
+      final batch = _db.batch();
+      batch.update(_conv(id), {'disappearAfterSec': seconds});
+      final msgId = const Uuid().v4();
+      batch.set(_conv(id).collection('messages').doc(msgId), {
+        'clientMessageId': msgId,
+        'senderId': uid,
+        'type': 'system',
+        'event': 'timer',
+        'timerSec': seconds,
+        'createdAt': FieldValue.serverTimestamp(),
+        'editedAt': null,
+        'deletedForEveryoneAt': null,
+      });
+      await batch.commit();
+    } catch (e) {
+      throw Failure.from(e);
+    }
+  }
+
+  @override
+  Future<void> setChatTheme(String id, String uid, String? themeId) =>
+      _update(id, uid, {'chatTheme': themeId ?? FieldValue.delete()});
 
   @override
   Future<void> clearChat(String id, String uid) =>

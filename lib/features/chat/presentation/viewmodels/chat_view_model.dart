@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,14 @@ import '../../../../core/utils/validators.dart';
 import '../../../auth/presentation/viewmodels/auth_providers.dart';
 import '../../../conversations/domain/entities/conversation.dart';
 import '../../../conversations/presentation/viewmodels/conversation_providers.dart';
+import '../../../attachments/domain/media_uploader.dart';
+import '../../../attachments/domain/send_image_message_use_case.dart';
+import '../../../attachments/presentation/viewmodels/attachment_providers.dart';
+import '../../../files/domain/picked_media.dart';
+import '../../../files/domain/send_media_message_use_case.dart';
+import '../../../voice/domain/send_voice_message_use_case.dart';
+import '../../../voice/domain/voice_models.dart';
+import '../../../voice/presentation/viewmodels/voice_providers.dart';
 import '../../domain/entities/chat_message.dart';
 import '../../domain/repositories/chat_repository.dart';
 import '../../../privacy_settings/presentation/viewmodels/settings_providers.dart';
@@ -20,6 +29,81 @@ export 'chat_providers.dart';
 /// it; any other emoji replaces/sets your reaction. Returns null to remove.
 String? nextReaction(String? current, String tapped) =>
     current == tapped ? null : tapped;
+
+/// A voice note being uploaded (or that failed to upload) in this chat.
+class VoiceUpload {
+  const VoiceUpload({
+    required this.id,
+    required this.recording,
+    this.replyToId,
+    this.progress = 0,
+    this.failure,
+  });
+
+  final String id;
+  final VoiceRecording recording;
+  final String? replyToId;
+  final double progress;
+  final Failure? failure;
+
+  bool get failed => failure != null;
+
+  VoiceUpload copyWith({double? progress, Object? failure = _keep}) =>
+      VoiceUpload(
+        id: id,
+        recording: recording,
+        replyToId: replyToId,
+        progress: progress ?? this.progress,
+        failure: identical(failure, _keep) ? this.failure : failure as Failure?,
+      );
+
+  static const _keep = Object();
+}
+
+/// A document or video being uploaded (progress, cancel) or that failed
+/// (retry / remove). Same id on retry => no duplicate message.
+class MediaUpload {
+  const MediaUpload({
+    required this.id,
+    this.doc,
+    this.video,
+    this.photo,
+    this.replyToId,
+    this.progress = 0,
+    this.failure,
+  }) : assert(
+         (doc != null ? 1 : 0) +
+                 (video != null ? 1 : 0) +
+                 (photo != null ? 1 : 0) ==
+             1,
+       );
+
+  final String id;
+  final PickedDocument? doc;
+  final PickedVideo? video;
+  final PickedPhoto? photo;
+  final String? replyToId;
+  final double progress;
+  final Failure? failure;
+
+  bool get isVideo => video != null;
+  bool get isPhoto => photo != null;
+  bool get failed => failure != null;
+  File get file => doc?.file ?? video?.file ?? photo!.file;
+
+  MediaUpload copyWith({double? progress, Object? failure = _keep}) =>
+      MediaUpload(
+        id: id,
+        doc: doc,
+        video: video,
+        photo: photo,
+        replyToId: replyToId,
+        progress: progress ?? this.progress,
+        failure: identical(failure, _keep) ? this.failure : failure as Failure?,
+      );
+
+  static const _keep = Object();
+}
 
 class ChatState {
   const ChatState({
@@ -34,7 +118,19 @@ class ChatState {
     this.replyTo,
     this.sendError,
     this.clearedAt,
+    this.voiceUploads = const [],
+    this.editing,
+    this.mediaUploads = const [],
   });
+
+  /// Documents and videos uploading or failed (shown at the bottom).
+  final List<MediaUpload> mediaUploads;
+
+  /// The message whose text is being edited in the composer.
+  final ChatMessage? editing;
+
+  /// Voice notes uploading or failed (shown at the bottom of the chat).
+  final List<VoiceUpload> voiceUploads;
 
   /// Everything at or before this time was cleared by the user (own view).
   final DateTime? clearedAt;
@@ -54,8 +150,12 @@ class ChatState {
   List<ChatMessage> get messages {
     final seen = <String>{};
     final out = <ChatMessage>[];
+    final now = DateTime.now();
     for (final m in [...latest, ...older]) {
       if (hidden.contains(m.id) || !seen.add(m.id)) continue;
+      // Disappearing messages vanish at expiresAt even before the server TTL
+      // job deletes the document.
+      if (m.isExpired(now)) continue;
       // Pending (just-sent) messages always stay visible; the rest respect the
       // user's "clear chat" time.
       if (clearedAt != null &&
@@ -84,7 +184,12 @@ class ChatState {
     Object? replyTo = _keep,
     Object? sendError = _keep,
     Object? clearedAt = _keep,
+    List<VoiceUpload>? voiceUploads,
+    Object? editing = _keep,
+    List<MediaUpload>? mediaUploads,
   }) => ChatState(
+    mediaUploads: mediaUploads ?? this.mediaUploads,
+    editing: identical(editing, _keep) ? this.editing : editing as ChatMessage?,
     latest: latest ?? this.latest,
     older: older ?? this.older,
     hidden: hidden ?? this.hidden,
@@ -98,6 +203,7 @@ class ChatState {
         identical(sendError, _keep) ? this.sendError : sendError as Failure?,
     clearedAt:
         identical(clearedAt, _keep) ? this.clearedAt : clearedAt as DateTime?,
+    voiceUploads: voiceUploads ?? this.voiceUploads,
   );
 
   static const _keep = Object();
@@ -284,7 +390,208 @@ class ChatViewModel extends Notifier<ChatState> {
     }
   }
 
-  void setReplyTo(ChatMessage? m) => state = state.copyWith(replyTo: m);
+  // ------------------------------------------------------------- voice notes
+  final Map<String, MediaUploader> _voiceUploaders = {};
+
+  /// Uploads a recorded voice note and sends it. Shows progress at the bottom
+  /// of the chat; a failure keeps it for retry (same id => no duplicates).
+  void sendVoice(VoiceRecording rec) {
+    if (_me == null) return;
+    final id = _uuid.v4();
+    final reply = state.replyTo?.id;
+    state = state.copyWith(
+      replyTo: null,
+      voiceUploads: [
+        ...state.voiceUploads,
+        VoiceUpload(id: id, recording: rec, replyToId: reply),
+      ],
+    );
+    _runVoice(id);
+  }
+
+  void retryVoice(String id) {
+    final u = state.voiceUploads.where((x) => x.id == id).firstOrNull;
+    if (u == null) return;
+    _setVoice(id, (x) => x.copyWith(progress: 0, failure: null));
+    _runVoice(id);
+  }
+
+  /// Cancels an upload in flight, or removes a failed one.
+  void discardVoice(String id) {
+    final up = _voiceUploaders.remove(id);
+    up?.cancel();
+    final u = state.voiceUploads.where((x) => x.id == id).firstOrNull;
+    state = state.copyWith(
+      voiceUploads: state.voiceUploads.where((x) => x.id != id).toList(),
+    );
+    if (u != null) _deleteQuietly(u.recording);
+  }
+
+  void _setVoice(String id, VoiceUpload Function(VoiceUpload) f) {
+    if (!ref.mounted) return; // chat closed mid-upload: it still completes
+    state = state.copyWith(
+      voiceUploads: [for (final x in state.voiceUploads) x.id == id ? f(x) : x],
+    );
+  }
+
+  Future<void> _runVoice(String id) async {
+    final me = _me;
+    final u = state.voiceUploads.where((x) => x.id == id).firstOrNull;
+    if (me == null || u == null) return;
+    final uploader = ref.read(mediaUploaderFactoryProvider)();
+    _voiceUploaders[id] = uploader;
+    try {
+      await SendVoiceMessageUseCase(uploader, _repo).call(
+        conversationId: conversationId,
+        senderId: me,
+        messageId: id,
+        recording: u.recording,
+        replyToId: u.replyToId,
+        onProgress: (p) => _setVoice(id, (x) => x.copyWith(progress: p)),
+      );
+      _voiceUploaders.remove(id);
+      _deleteQuietly(u.recording);
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        voiceUploads: state.voiceUploads.where((x) => x.id != id).toList(),
+      );
+    } catch (e) {
+      _voiceUploaders.remove(id);
+      if (!ref.mounted) return;
+      final f = Failure.from(e);
+      // A user cancel removes the item; anything else keeps it for retry.
+      if (f is UploadFailure && f.reason == UploadReason.cancelled) {
+        if (state.voiceUploads.any((x) => x.id == id)) discardVoice(id);
+      } else if (state.voiceUploads.any((x) => x.id == id)) {
+        _setVoice(id, (x) => x.copyWith(failure: f));
+      }
+    }
+  }
+
+  // ----------------------------------------------------- documents and videos
+  final Map<String, MediaUploader> _mediaUploaders = {};
+
+  void sendDocument(PickedDocument doc) => _startMedia(
+    MediaUpload(id: _uuid.v4(), doc: doc, replyToId: state.replyTo?.id),
+  );
+
+  /// Photo from the preview screen: compressed and uploaded in the
+  /// background while the chat shows it with a progress ring.
+  void sendPhoto(PickedPhoto photo, {String? replyToId}) => _startMedia(
+    MediaUpload(
+      id: _uuid.v4(),
+      photo: photo,
+      replyToId: replyToId ?? state.replyTo?.id,
+    ),
+  );
+
+  void sendVideo(PickedVideo video) => _startMedia(
+    MediaUpload(id: _uuid.v4(), video: video, replyToId: state.replyTo?.id),
+  );
+
+  void _startMedia(MediaUpload u) {
+    if (_me == null) return;
+    state = state.copyWith(
+      replyTo: null,
+      mediaUploads: [...state.mediaUploads, u],
+    );
+    _runMedia(u.id);
+  }
+
+  void retryMedia(String id) {
+    if (!state.mediaUploads.any((x) => x.id == id)) return;
+    _setMedia(id, (x) => x.copyWith(progress: 0, failure: null));
+    _runMedia(id);
+  }
+
+  /// Cancels an upload in flight, or removes a failed one.
+  void discardMedia(String id) {
+    _mediaUploaders.remove(id)?.cancel();
+    state = state.copyWith(
+      mediaUploads: state.mediaUploads.where((x) => x.id != id).toList(),
+    );
+  }
+
+  void _setMedia(String id, MediaUpload Function(MediaUpload) f) {
+    if (!ref.mounted) return;
+    state = state.copyWith(
+      mediaUploads: [for (final x in state.mediaUploads) x.id == id ? f(x) : x],
+    );
+  }
+
+  Future<void> _runMedia(String id) async {
+    final me = _me;
+    final u = state.mediaUploads.where((x) => x.id == id).firstOrNull;
+    if (me == null || u == null) return;
+    final uploader = ref.read(mediaUploaderFactoryProvider)();
+    _mediaUploaders[id] = uploader;
+    final useCase = SendMediaMessageUseCase(uploader, _repo);
+    void progress(double p) => _setMedia(id, (x) => x.copyWith(progress: p));
+    try {
+      if (u.photo != null) {
+        await SendImageMessageUseCase(
+          ref.read(imageProcessorProvider),
+          uploader,
+          _repo,
+        )(
+          conversationId: conversationId,
+          senderId: me,
+          messageId: id,
+          source: u.photo!.file,
+          caption: u.photo!.caption,
+          replyToId: u.replyToId,
+          onProgress: progress,
+        );
+      } else if (u.video != null) {
+        await useCase.sendVideo(
+          conversationId: conversationId,
+          senderId: me,
+          messageId: id,
+          video: u.video!,
+          replyToId: u.replyToId,
+          onProgress: progress,
+        );
+      } else {
+        await useCase.sendDocument(
+          conversationId: conversationId,
+          senderId: me,
+          messageId: id,
+          doc: u.doc!,
+          replyToId: u.replyToId,
+          onProgress: progress,
+        );
+      }
+      _mediaUploaders.remove(id);
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        mediaUploads: state.mediaUploads.where((x) => x.id != id).toList(),
+      );
+    } catch (e) {
+      _mediaUploaders.remove(id);
+      if (!ref.mounted) return;
+      final f = Failure.from(e);
+      if (f is UploadFailure && f.reason == UploadReason.cancelled) {
+        if (state.mediaUploads.any((x) => x.id == id)) discardMedia(id);
+      } else if (state.mediaUploads.any((x) => x.id == id)) {
+        _setMedia(id, (x) => x.copyWith(failure: f));
+      }
+    }
+  }
+
+  void _deleteQuietly(VoiceRecording r) {
+    try {
+      r.file.deleteSync();
+    } catch (_) {}
+  }
+
+  void setReplyTo(ChatMessage? m) =>
+      state = state.copyWith(replyTo: m, editing: null);
+
+  /// Turns [m]'s bubble into an inline editor (replaces any reply).
+  void startEdit(ChatMessage m) =>
+      state = state.copyWith(editing: m, replyTo: null, sendError: null);
+
+  void cancelEdit() => state = state.copyWith(editing: null);
   void clearSendError() => state = state.copyWith(sendError: null);
 
   /// Sends [text]. Returns false if rejected by local validation (the caller
@@ -335,6 +642,36 @@ class ChatViewModel extends Notifier<ChatState> {
     state = state.copyWith(replyTo: null, sendError: null);
     _dispatch(id, text.trim(), reply);
     return true;
+  }
+
+  /// Saves the inline edit of [state.editing]. Returns false if the text is
+  /// invalid (the edit stays open).
+  bool saveEdit(String raw) {
+    final m = state.editing;
+    if (m == null) return false;
+    try {
+      FieldValidators.messageText(raw);
+    } on ValidationFailure catch (f) {
+      state = state.copyWith(sendError: f);
+      return false;
+    }
+    _saveEdit(m, raw.trim());
+    return true;
+  }
+
+  Future<void> _saveEdit(ChatMessage m, String text) async {
+    state = state.copyWith(editing: null);
+    if (text == (m.text ?? '')) return; // nothing changed
+    if (!m.canEdit(_me ?? '')) {
+      state = state.copyWith(sendError: const PermissionFailure());
+      return;
+    }
+    try {
+      await _repo.editMessage(conversationId, m.id, text);
+    } catch (e) {
+      if (!ref.mounted) return;
+      state = state.copyWith(sendError: Failure.from(e));
+    }
   }
 
   void _dispatch(String id, String text, String? replyToId) {

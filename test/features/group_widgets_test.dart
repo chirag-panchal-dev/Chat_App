@@ -104,7 +104,10 @@ void main() {
         overrides: base,
       );
       expect(find.text('Aarav Sharma'), findsOneWidget);
-      expect(find.text('hello team'), findsOneWidget);
+      expect(
+        find.textContaining('hello team', findRichText: true),
+        findsOneWidget,
+      );
       expect(find.byKey(const ValueKey('avatar')), findsOneWidget);
     });
 

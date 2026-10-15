@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/errors/failure.dart';
 import '../domain/privacy_settings.dart';
+import '../domain/quiet_hours.dart';
 
 class FirestoreSettingsRepository implements SettingsRepository {
   FirestoreSettingsRepository(this._db);
@@ -29,6 +30,17 @@ class FirestoreSettingsRepository implements SettingsRepository {
           readReceiptsEnabled: d['readReceiptsEnabled'] as bool? ?? true,
           showLastSeen: d['lastSeenVisibility'] != 'nobody',
           themeMode: _theme(d['themeMode']),
+          quietHours: QuietHours(
+            enabled: d['quietHoursEnabled'] as bool? ?? false,
+            startMin:
+                QuietHours.validMinute(d['quietStartMin'])
+                    ? d['quietStartMin'] as int
+                    : 22 * 60,
+            endMin:
+                QuietHours.validMinute(d['quietEndMin'])
+                    ? d['quietEndMin'] as int
+                    : 7 * 60,
+          ),
         );
       })
       .handleError((Object e) => throw Failure.from(e));
@@ -60,6 +72,22 @@ class FirestoreSettingsRepository implements SettingsRepository {
   Future<void> setShowLastSeen(String uid, bool value) => _merge(uid, {
     'lastSeenVisibility': value ? 'contacts_or_chat_members' : 'nobody',
   });
+
+  @override
+  Future<void> setQuietHours(
+    String uid,
+    QuietHours q, {
+    required int utcOffsetMin,
+  }) => _merge(uid, {
+    'quietHoursEnabled': q.enabled,
+    'quietStartMin': q.startMin,
+    'quietEndMin': q.endMin,
+    'utcOffsetMin': utcOffsetMin,
+  });
+
+  @override
+  Future<void> syncUtcOffset(String uid, int utcOffsetMin) =>
+      _merge(uid, {'utcOffsetMin': utcOffsetMin});
 
   @override
   Future<void> setThemeMode(String uid, ThemeMode mode) =>

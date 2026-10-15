@@ -23,6 +23,17 @@ abstract interface class ConversationRepository {
     DateTime? until,
   );
 
+  /// Turns disappearing messages on/off for everyone in the chat and posts a
+  /// notice. Groups: admins only (rules enforce it).
+  Future<void> setDisappearAfter(
+    String conversationId,
+    String uid,
+    int seconds,
+  );
+
+  /// This user's own chat look (`null` = back to the default).
+  Future<void> setChatTheme(String conversationId, String uid, String? themeId);
+
   /// Clears the chat for this user only (hides everything up to now).
   Future<void> clearChat(String conversationId, String uid);
 

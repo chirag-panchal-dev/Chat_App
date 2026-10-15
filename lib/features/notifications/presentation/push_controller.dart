@@ -107,6 +107,13 @@ class PushController extends Notifier<PushState> {
       title: n.title ?? '',
       body: n.body ?? '',
       conversationId: cid,
+      quiet:
+          ref
+              .read(settingsProvider)
+              .value
+              ?.quietHours
+              .contains(DateTime.now()) ??
+          false,
     );
   }
 

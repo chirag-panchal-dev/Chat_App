@@ -8,6 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// created here and referenced by the Cloud Function payload.
 class LocalNotifications {
   static const channelId = 'messages';
+
+  /// Same notifications without sound or vibration (quiet hours). Must match
+  /// the channel id the Cloud Function uses.
+  static const quietChannelId = 'messages_quiet';
   final _plugin = FlutterLocalNotificationsPlugin();
   final _taps = StreamController<String>.broadcast();
   String? launchConversationId;
@@ -42,6 +46,20 @@ class LocalNotifications {
             importance: Importance.high,
           ),
         );
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            quietChannelId,
+            'Messages (quiet hours)',
+            description: 'Silent message notifications during quiet hours',
+            importance: Importance.low,
+            playSound: false,
+            enableVibration: false,
+          ),
+        );
     final launch = await _plugin.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp ?? false) {
       launchConversationId = launch?.notificationResponse?.payload;
@@ -53,20 +71,31 @@ class LocalNotifications {
     required String title,
     required String body,
     required String conversationId,
+    bool quiet = false,
   }) => _plugin.show(
     id,
     title,
     body,
-    const NotificationDetails(
-      android: AndroidNotificationDetails(
-        channelId,
-        'Messages',
-        importance: Importance.high,
-        priority: Priority.high,
-      ),
+    NotificationDetails(
+      android:
+          quiet
+              ? const AndroidNotificationDetails(
+                quietChannelId,
+                'Messages (quiet hours)',
+                importance: Importance.low,
+                priority: Priority.low,
+                playSound: false,
+                enableVibration: false,
+              )
+              : const AndroidNotificationDetails(
+                channelId,
+                'Messages',
+                importance: Importance.high,
+                priority: Priority.high,
+              ),
       iOS: DarwinNotificationDetails(
         presentAlert: true,
-        presentSound: true,
+        presentSound: !quiet,
         presentBadge: false,
       ),
     ),

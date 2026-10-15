@@ -12,9 +12,13 @@ import '../../../../core/theme/hushlo_colors.dart';
 import '../../../../core/utils/app_settings.dart';
 import '../../../../core/widgets/confirm_sign_out.dart';
 import '../../../../core/widgets/user_avatar.dart';
+import '../../../app_lock/domain/app_lock_models.dart';
+import '../../../app_lock/presentation/app_lock_controller.dart';
 import '../../../auth/presentation/viewmodels/auth_providers.dart';
 import '../../../notifications/presentation/push_controller.dart';
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
+import '../../domain/privacy_settings.dart';
+import '../../domain/quiet_hours.dart';
 import '../viewmodels/settings_providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -195,8 +199,66 @@ class SettingsScreen extends ConsumerWidget {
                                     ? null
                                     : (v) => repo.setShowMessagePreview(uid, v),
                           ),
+                          _SwitchTile(
+                            icon: Icons.bedtime_rounded,
+                            color: const Color(0xFF5B6BC0),
+                            title: l.quietHours,
+                            subtitle: l.quietHoursHelp,
+                            value: (settings?.quietHours.enabled ?? false),
+                            onChanged:
+                                uid == null
+                                    ? null
+                                    : (v) => _saveQuiet(
+                                      repo,
+                                      uid,
+                                      (settings?.quietHours ??
+                                              const QuietHours())
+                                          .copyWith(enabled: v),
+                                    ),
+                          ),
+                          if (settings?.quietHours.enabled ?? false) ...[
+                            _NavTile(
+                              icon: Icons.nightlight_round,
+                              color: const Color(0xFF5B6BC0),
+                              title: l.quietFrom,
+                              subtitle: _fmtMinutes(
+                                context,
+                                settings!.quietHours.startMin,
+                              ),
+                              onTap:
+                                  uid == null
+                                      ? () {}
+                                      : () => _pickQuiet(
+                                        context,
+                                        repo,
+                                        uid,
+                                        settings.quietHours,
+                                        start: true,
+                                      ),
+                            ),
+                            _NavTile(
+                              icon: Icons.wb_sunny_rounded,
+                              color: const Color(0xFFEF8A3C),
+                              title: l.quietUntil,
+                              subtitle: _fmtMinutes(
+                                context,
+                                settings.quietHours.endMin,
+                              ),
+                              onTap:
+                                  uid == null
+                                      ? () {}
+                                      : () => _pickQuiet(
+                                        context,
+                                        repo,
+                                        uid,
+                                        settings.quietHours,
+                                        start: false,
+                                      ),
+                            ),
+                          ],
                         ],
                       ),
+                      const _AppLockGroup(),
                       _Group(
                         title: l.privacyAndSafety,
                         children: [
@@ -457,6 +519,42 @@ class _IconTile extends StatelessWidget {
   );
 }
 
+String _fmtMinutes(BuildContext context, int minutes) =>
+    MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+
+/// Saves the window together with the phone's current UTC offset (the server
+/// uses it to work out the user's local time).
+Future<void> _saveQuiet(SettingsRepository repo, String uid, QuietHours q) =>
+    repo.setQuietHours(
+      uid,
+      q,
+      utcOffsetMin: DateTime.now().timeZoneOffset.inMinutes,
+    );
+
+Future<void> _pickQuiet(
+  BuildContext context,
+  SettingsRepository repo,
+  String uid,
+  QuietHours q, {
+  required bool start,
+}) async {
+  final current = start ? q.startMin : q.endMin;
+  final picked = await showTimePicker(
+    context: context,
+    initialTime: TimeOfDay(hour: current ~/ 60, minute: current % 60),
+  );
+  if (picked == null) return;
+  final m = picked.hour * 60 + picked.minute;
+  await _saveQuiet(
+    repo,
+    uid,
+    start ? q.copyWith(startMin: m) : q.copyWith(endMin: m),
+  );
+}
+
 class _NavTile extends StatelessWidget {
   const _NavTile({
     required this.icon,
@@ -514,4 +612,101 @@ class _SwitchTile extends StatelessWidget {
     value: value,
     onChanged: onChanged,
   );
+}
+
+/// App lock: Face ID / fingerprint / passcode, lock delay and app-switcher cover.
+/// Device-local; changing it requires authenticating first.
+class _AppLockGroup extends ConsumerWidget {
+  const _AppLockGroup();
+
+  String _timeoutLabel(AppL10n l, AppLockTimeout t) => switch (t) {
+    AppLockTimeout.immediately => l.timeoutImmediately,
+    AppLockTimeout.oneMinute => l.timeout1m,
+    AppLockTimeout.fiveMinutes => l.timeout5m,
+    AppLockTimeout.fifteenMinutes => l.timeout15m,
+    AppLockTimeout.oneHour => l.timeout1h,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
+    final available = ref.watch(appLockAvailableProvider).value ?? true;
+    final s = ref.watch(appLockProvider).settings;
+    final ctl = ref.read(appLockProvider.notifier);
+
+    return _Group(
+      title: l.appLock,
+      children: [
+        _SwitchTile(
+          icon: Icons.fingerprint_rounded,
+          color: const Color(0xFF1E8FA8),
+          title: l.appLock,
+          subtitle: available || s.enabled ? l.appLockHelp : l.lockNotAvailable,
+          value: s.enabled,
+          onChanged:
+              (!available && !s.enabled)
+                  ? null
+                  : (v) async {
+                    final r = await ctl.setEnabled(
+                      v,
+                      reason: l.changeLockReason,
+                    );
+                    if (!context.mounted || r == LockChange.done) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          r == LockChange.notAvailable
+                              ? l.lockNotAvailable
+                              : l.lockVerifyFailed,
+                        ),
+                      ),
+                    );
+                  },
+        ),
+        if (s.enabled)
+          _NavTile(
+            icon: Icons.timer_outlined,
+            color: const Color(0xFF5B4FE0),
+            title: l.lockAfter,
+            subtitle: _timeoutLabel(l, s.timeout),
+            onTap:
+                () => showModalBottomSheet<void>(
+                  context: context,
+                  builder:
+                      (ctx) => SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final t in AppLockTimeout.values)
+                              ListTile(
+                                title: Text(_timeoutLabel(l, t)),
+                                trailing:
+                                    t == s.timeout
+                                        ? Icon(
+                                          Icons.check_rounded,
+                                          color: ctx.colors.primary,
+                                        )
+                                        : null,
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  ctl.setTimeout(t);
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                ),
+          ),
+        if (s.enabled)
+          _SwitchTile(
+            icon: Icons.visibility_off_rounded,
+            color: const Color(0xFF7C8A94),
+            title: l.hideAppPreview,
+            subtitle: l.hideAppPreviewHelp,
+            value: s.hidePreview,
+            onChanged: ctl.setHidePreview,
+          ),
+      ],
+    );
+  }
 }

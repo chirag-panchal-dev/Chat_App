@@ -9,6 +9,7 @@ import '../../../auth/presentation/viewmodels/auth_providers.dart';
 import '../../../conversations/presentation/viewmodels/conversation_providers.dart';
 import '../../../profile/presentation/viewmodels/profile_providers.dart';
 import '../../domain/entities/chat_message.dart';
+import '../message_preview.dart';
 import '../viewmodels/chat_view_model.dart';
 
 /// Per-person delivery/read status of one of *my* messages in a group.
@@ -136,9 +137,7 @@ class MessageInfoScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(18),
                       ),
                       child: Text(
-                        m.deleted
-                            ? l.youDeletedMessage
-                            : (m.previewText(l.photo)),
+                        m.deleted ? l.youDeletedMessage : (m.preview(l)),
                         style: t.bodyLarge?.copyWith(color: c.onBubbleOut),
                       ),
                     ),
